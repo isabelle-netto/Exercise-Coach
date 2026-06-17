@@ -8,103 +8,100 @@ st.set_page_config(page_title="Fitness Goals", layout="wide")
 apply_style()
 
 
-# ---------- IMAGE LOADER ----------
 def get_base64(path):
     try:
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
-    except:
+    except Exception:
         return ""
 
 
 BASE_DIR = Path(__file__).parent.parent
+ICON_DIR = BASE_DIR / "assets" / "icons"
 
-# ---------- CSS ----------
-st.markdown("""
+theme = st.session_state.get("theme", "Dark")
+icon_filter = "invert(1)" if theme == "Dark" else "invert(0)"
+
+
+st.markdown(f"""
 <style>
-
-/* HEADER CARD */
-.header-card {
+.header-card {{
     background-color: #1f2421;
     padding: 35px;
     border-radius: 20px;
     margin-bottom: 40px;
-}
+}}
 
-.header-title {
+.header-title {{
     font-size: 48px;
     font-weight: 900;
-}
+}}
 
-.header-sub {
+.header-sub {{
     font-size: 18px;
     opacity: 0.7;
-}
+}}
 
-/* GOAL GRID */
-.goal-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 30px;
-}
-
-/* GOAL CARD */
-.goal-card {
+.goal-card {{
     background-color: #1f2421;
     border-radius: 18px;
-    padding: 20px;
+    padding: 25px;
     text-align: center;
     cursor: pointer;
     transition: 0.2s;
-}
+    min-height: 210px;
+}}
 
-.goal-card:hover {
+.goal-card:hover {{
     transform: scale(1.03);
-}
+}}
 
-.goal-card.selected {
+.goal-card.selected {{
     border: 3px solid #9fb9d4;
-}
+}}
 
-/* IMAGE */
-.goal-img {
-    width: 120px;
-    margin-bottom: 10px;
-}
+.goal-img {{
+    width: 95px;
+    height: 95px;
+    object-fit: contain;
+    margin-bottom: 18px;
+    filter: {icon_filter};
+}}
 
-/* TITLE */
-.goal-title {
+.goal-title {{
     font-size: 20px;
     font-weight: 800;
-}
+}}
 
-/* DESC */
-.goal-desc {
+.goal-desc {{
     font-size: 13px;
     opacity: 0.7;
-}
+}}
 
-/* BUTTON */
-.complete-btn {
-    margin-top: 40px;
-    width: 250px;
-}
+div.stButton > button {{
+    margin-bottom: 25px;
+}}
+
+.complete-btn {{
+    margin-top: 30px;
+}}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- HEADER ----------
+
 st.markdown("""
 <div class="header-card">
     <div class="header-title">FITNESS GOALS</div>
     <div class="header-sub">
-        Choose your goals to personalise your experience
+        Choose one or more goals to personalise your experience.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ---------- SESSION STATE ----------
+
 if "selected_goals" not in st.session_state:
     st.session_state["selected_goals"] = []
+
 
 def toggle_goal(goal):
     if goal in st.session_state["selected_goals"]:
@@ -113,46 +110,75 @@ def toggle_goal(goal):
         st.session_state["selected_goals"].append(goal)
 
 
-# ---------- GOAL DATA ----------
 GOALS = [
-    ("Improve mobility", "Increase movement range", "goal_mobility.png"),
-    ("Build strength", "Improve muscle control", "goal_strength.png"),
-    ("Improve posture/form", "Better body alignment", "goal_posture.png"),
-    ("Increase endurance", "Exercise longer", "goal_endurance.png"),
-    ("General fitness", "Overall health", "goal_general.png"),
+    (
+        "Improve mobility",
+        "Improve movement range and ease of motion.",
+        "improve_mobility.png"
+    ),
+    (
+        "Improve posture/form",
+        "Support safer alignment and better exercise control.",
+        "improve_posture_form.png"
+    ),
+    (
+        "General fitness",
+        "Improve overall health, consistency, and activity level.",
+        "general_fitness.png"
+    ),
+    (
+        "Build strength",
+        "Develop muscle control and functional strength.",
+        "build_strength.png"
+    ),
+    (
+        "Increase endurance",
+        "Improve stamina and ability to exercise for longer.",
+        "increase_endurance.png"
+    ),
 ]
 
-# ---------- DISPLAY CARDS ----------
+
 cols = st.columns(2)
 
 for i, (title, desc, img) in enumerate(GOALS):
     with cols[i % 2]:
-
-        img_base64 = get_base64(BASE_DIR / "static" / img)
-
-        selected_class = "selected" if title in st.session_state["selected_goals"] else ""
+        img_base64 = get_base64(ICON_DIR / img)
+        selected = "selected" if title in st.session_state["selected_goals"] else ""
 
         st.markdown(f"""
-        <div class="goal-card {selected_class}">
+        <div class="goal-card {selected}">
             <img class="goal-img" src="data:image/png;base64,{img_base64}">
             <div class="goal-title">{title}</div>
             <div class="goal-desc">{desc}</div>
         </div>
         """, unsafe_allow_html=True)
 
-        if st.button("Select", key=title):
+        if st.button("Select", key=f"goal_{title}", use_container_width=True):
             toggle_goal(title)
+            st.rerun()
 
-# ---------- COMPLETE ----------
+
 st.markdown('<div class="complete-btn">', unsafe_allow_html=True)
 
 if st.button("Complete Profile", use_container_width=True):
-
     user_id = st.session_state.get("user_id")
 
     if not user_id:
         st.error("Please sign in first.")
+
+    elif not st.session_state.get("limitation_category"):
+        st.warning("Please complete the movement capability step first.")
+
+    elif not st.session_state.get("selected_equipment"):
+        st.warning("Please complete the equipment step first.")
+
+    elif not st.session_state.get("selected_goals"):
+        st.warning("Please select at least one fitness goal.")
+
     else:
+        equipment_list = list(dict.fromkeys(st.session_state.get("selected_equipment", [])))
+
         save_profile(
             user_id=user_id,
             limitation_category=st.session_state.get("limitation_category"),
@@ -161,7 +187,7 @@ if st.button("Complete Profile", use_container_width=True):
 
         save_user_equipment(
             user_id=user_id,
-            equipment_list=st.session_state.get("selected_equipment", [])
+            equipment_list=equipment_list
         )
 
         st.success("Profile completed.")
