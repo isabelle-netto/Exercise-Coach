@@ -9,34 +9,38 @@ DB_PATH = Path(__file__).parent.parent / "data" / "exercisecoach.db"
 
 
 def get_connection():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     return sqlite3.connect(DB_PATH)
 
 
-# ---------------- PASSWORD SECURITY ----------------
-
 def hash_password(password):
-    password_bytes = password.encode("utf-8")
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def verify_password(password, hashed_password):
-    try:
-        return bcrypt.checkpw(
-            password.encode("utf-8"),
-            hashed_password.encode("utf-8")
-        )
-    except Exception:
+def is_bcrypt_hash(value):
+    return isinstance(value, str) and value.startswith("$2")
+
+
+def verify_password(password, stored_password):
+    if not stored_password:
         return False
 
+    if is_bcrypt_hash(stored_password):
+        try:
+            return bcrypt.checkpw(password.encode("utf-8"), stored_password.encode("utf-8"))
+        except Exception:
+            return False
 
-# ---------------- USER ----------------
+    return password == stored_password
+
 
 def create_user(full_name, email, password):
     conn = get_connection()
     cur = conn.cursor()
 
-    hashed_password = hash_password(password)
+    email = email.strip().lower()
+    full_name = full_name.strip()
+    hashed_password = hash_password(password.strip())
 
     try:
         cur.execute("""
@@ -58,10 +62,13 @@ def login_user(email, password):
     conn = get_connection()
     cur = conn.cursor()
 
+    email = email.strip().lower()
+    password = password.strip()
+
     cur.execute("""
         SELECT UserID, FullName, Password
         FROM User
-        WHERE Email = ?
+        WHERE LOWER(Email) = ?
     """, (email,))
 
     user = cur.fetchone()
@@ -73,14 +80,19 @@ def login_user(email, password):
     user_id, full_name, stored_password = user
 
     if verify_password(password, stored_password):
+        if not is_bcrypt_hash(stored_password):
+            cur.execute("""
+                UPDATE User SET Password = ?
+                WHERE UserID = ?
+            """, (hash_password(password), user_id))
+            conn.commit()
+
         conn.close()
         return (user_id, full_name)
 
     conn.close()
     return None
 
-
-# ---------------- PROFILE ----------------
 
 def save_profile(user_id, limitation_category, fitness_goals):
     conn = get_connection()
@@ -132,8 +144,6 @@ def get_user_goals(user_id):
     return []
 
 
-# ---------------- EQUIPMENT ----------------
-
 def get_all_equipment():
     conn = get_connection()
     cur = conn.cursor()
@@ -182,8 +192,6 @@ def get_user_equipment(user_id):
     conn.close()
     return [row[0] for row in rows]
 
-
-# ---------------- EXERCISES ----------------
 
 def get_all_exercises():
     conn = get_connection()
@@ -344,8 +352,6 @@ def get_recommended_exercises(user_id):
     return recommendations[:6]
 
 
-# ---------------- DIARY ----------------
-
 def save_diary_entry(user_id, note):
     conn = get_connection()
     cur = conn.cursor()
@@ -374,8 +380,6 @@ def get_diary_entries(user_id):
     conn.close()
     return rows
 
-
-# ---------------- SESSION SAVE ----------------
 
 def save_exercise_session(user_id, exercise_id, reps_completed, duration, accuracy_score=0, avg_angle_error=0):
     conn = get_connection()
@@ -431,8 +435,6 @@ def get_user_session_results(user_id):
     return rows
 
 
-# ---------------- RESET PASSWORD ----------------
-
 def generate_reset_code():
     return ''.join(random.choices(string.digits, k=6))
 
@@ -441,6 +443,7 @@ def save_reset_code(email, code):
     conn = get_connection()
     cur = conn.cursor()
 
+    email = email.strip().lower()
     expiry = (datetime.now() + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
 
     cur.execute("""
@@ -465,10 +468,12 @@ def verify_reset_code(email, code):
     conn = get_connection()
     cur = conn.cursor()
 
+    email = email.strip().lower()
+
     cur.execute("""
         SELECT Expiry FROM PasswordReset
         WHERE Email = ? AND Code = ?
-    """, (email, code))
+    """, (email, code.strip()))
 
     row = cur.fetchone()
     conn.close()
@@ -484,11 +489,12 @@ def update_password(email, new_password):
     conn = get_connection()
     cur = conn.cursor()
 
-    hashed_password = hash_password(new_password)
+    email = email.strip().lower()
+    hashed_password = hash_password(new_password.strip())
 
     cur.execute("""
         UPDATE User SET Password = ?
-        WHERE Email = ?
+        WHERE LOWER(Email) = ?
     """, (hashed_password, email))
 
     conn.commit()
