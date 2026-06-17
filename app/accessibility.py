@@ -16,135 +16,32 @@ def init_accessibility_settings():
             st.session_state[key] = value
 
 
-def load_accessibility_from_browser():
-    components.html(
-        """
-        <script>
-        const theme = window.localStorage.getItem("belle_theme");
-        const textSize = window.localStorage.getItem("belle_text_size");
-        const audio = window.localStorage.getItem("belle_audio_feedback");
-        const voice = window.localStorage.getItem("belle_voice_control");
-
-        const params = new URLSearchParams(window.location.search);
-
-        if (theme && !params.get("theme")) {
-            params.set("theme", theme);
-        }
-        if (textSize && !params.get("text_size")) {
-            params.set("text_size", textSize);
-        }
-        if (audio && !params.get("audio_feedback")) {
-            params.set("audio_feedback", audio);
-        }
-        if (voice && !params.get("voice_control")) {
-            params.set("voice_control", voice);
-        }
-
-        if (theme || textSize || audio || voice) {
-            const newUrl = window.location.pathname + "?" + params.toString();
-            if (window.location.href !== window.location.origin + newUrl) {
-                window.location.replace(newUrl);
-            }
-        }
-        </script>
-        """,
-        height=0,
-    )
-
-
-def sync_accessibility_from_query_params():
-    params = st.query_params
-
-    if "theme" in params:
-        value = params.get("theme")
-        if value in ["Dark", "Light"]:
-            st.session_state["theme"] = value
-
-    if "text_size" in params:
-        value = params.get("text_size")
-        if value in ["Standard", "Large"]:
-            st.session_state["text_size"] = value
-
-    if "audio_feedback" in params:
-        st.session_state["audio_feedback"] = params.get("audio_feedback") == "True"
-
-    if "voice_control" in params:
-        st.session_state["voice_control"] = params.get("voice_control") == "True"
-
-
-def save_accessibility_to_browser():
-    theme = json.dumps(st.session_state.get("theme", "Dark"))
-    text_size = json.dumps(st.session_state.get("text_size", "Standard"))
-    audio = json.dumps(str(st.session_state.get("audio_feedback", False)))
-    voice = json.dumps(str(st.session_state.get("voice_control", False)))
-
-    components.html(
-        f"""
-        <script>
-        window.localStorage.setItem("belle_theme", {theme});
-        window.localStorage.setItem("belle_text_size", {text_size});
-        window.localStorage.setItem("belle_audio_feedback", {audio});
-        window.localStorage.setItem("belle_voice_control", {voice});
-        </script>
-        """,
-        height=0,
-    )
-
-
-def setup_accessibility():
-    init_accessibility_settings()
-    load_accessibility_from_browser()
-    sync_accessibility_from_query_params()
-    save_accessibility_to_browser()
-
-
 def accessibility_settings_panel(use_popover=False):
-    setup_accessibility()
+    init_accessibility_settings()
 
     with st.expander("Accessibility Settings", expanded=False):
         st.markdown("### Accessibility Settings")
-
         st.radio("Theme", ["Dark", "Light"], key="theme", horizontal=True)
         st.radio("Text Size", ["Standard", "Large"], key="text_size", horizontal=True)
-
         st.checkbox("Enable audio feedback", key="audio_feedback")
         st.checkbox("Enable voice control", key="voice_control")
-
-        save_accessibility_to_browser()
-
-        st.caption(
-            "Screen reader users can use their device screen reader such as Narrator, VoiceOver, NVDA, JAWS, or TalkBack."
-        )
+        st.caption("Screen reader users can use their device screen reader such as Narrator, VoiceOver, NVDA, JAWS, or TalkBack.")
 
 
 def apply_accessibility_styles():
-    setup_accessibility()
+    init_accessibility_settings()
 
     theme = st.session_state.get("theme", "Dark")
     text_size = st.session_state.get("text_size", "Standard")
 
     if theme == "Light":
-        bg = "#F7F4EF"
-        text = "#111111"
-        card = "rgba(255,255,255,0.92)"
-        button = "#111111"
-        button_text = "#FFFFFF"
-        border = "#111111"
-        nav = "#FFFFFF"
-        nav_text = "#111111"
-        input_bg = "#FFFFFF"
-        input_text = "#111111"
+        bg = "#F7F4EF"; text = "#111111"; card = "rgba(255,255,255,0.92)"
+        button = "#111111"; button_text = "#FFFFFF"; border = "#111111"
+        nav = "#FFFFFF"; nav_text = "#111111"; input_bg = "#FFFFFF"; input_text = "#111111"
     else:
-        bg = "#12100f"
-        text = "#FFFFFF"
-        card = "rgba(31,36,33,0.90)"
-        button = "#9fb9d4"
-        button_text = "#000000"
-        border = "#9fb9d4"
-        nav = "#9fb9d4"
-        nav_text = "#000000"
-        input_bg = "#FFFFFF"
-        input_text = "#111111"
+        bg = "#12100f"; text = "#FFFFFF"; card = "rgba(31,36,33,0.90)"
+        button = "#9fb9d4"; button_text = "#000000"; border = "#9fb9d4"
+        nav = "#9fb9d4"; nav_text = "#000000"; input_bg = "#FFFFFF"; input_text = "#111111"
 
     base_size = "20px" if text_size == "Large" else "16px"
     button_size = "19px" if text_size == "Large" else "15px"
@@ -152,22 +49,10 @@ def apply_accessibility_styles():
 
     st.markdown(f"""
     <style>
-    .stApp {{
-        background: {bg} !important;
-        color: {text} !important;
-    }}
-
-    h1, h2, h3, h4, h5, h6, p, label, span {{
-        color: {text} !important;
-    }}
-
-    p, label, span, input, textarea, button {{
-        font-size: {base_size} !important;
-    }}
-
-    h1 {{
-        font-size: {h1_size} !important;
-    }}
+    .stApp {{ background: {bg} !important; color: {text} !important; }}
+    h1, h2, h3, h4, h5, h6, p, label, span {{ color: {text} !important; }}
+    p, label, span, input, textarea, button {{ font-size: {base_size} !important; }}
+    h1 {{ font-size: {h1_size} !important; }}
 
     .card {{
         background: {card} !important;
@@ -185,9 +70,7 @@ def apply_accessibility_styles():
         font-weight: 900 !important;
     }}
 
-    div.stButton > button * {{
-        color: {button_text} !important;
-    }}
+    div.stButton > button * {{ color: {button_text} !important; }}
 
     input, textarea {{
         background-color: {input_bg} !important;
@@ -201,28 +84,16 @@ def apply_accessibility_styles():
         border: 2px solid {border} !important;
     }}
 
-    div[data-baseweb="select"] span {{
-        color: {input_text} !important;
-    }}
-
-    div[role="radiogroup"] label span,
-    label span {{
-        color: {text} !important;
-    }}
-
-    details summary {{
-        color: {text} !important;
-        font-weight: 900 !important;
-    }}
+    div[data-baseweb="select"] span {{ color: {input_text} !important; }}
+    div[role="radiogroup"] label span, label span {{ color: {text} !important; }}
+    details summary {{ color: {text} !important; font-weight: 900 !important; }}
 
     .bottom-nav {{
         background-color: {nav} !important;
         border: 2px solid {border} !important;
     }}
 
-    .bottom-nav a {{
-        color: {nav_text} !important;
-    }}
+    .bottom-nav a {{ color: {nav_text} !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -255,7 +126,7 @@ def screen_reader_status(text):
 
 
 def voice_control_box():
-    setup_accessibility()
+    init_accessibility_settings()
 
     if not st.session_state.get("voice_control"):
         return None
