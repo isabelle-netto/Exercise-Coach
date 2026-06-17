@@ -7,62 +7,56 @@ apply_style()
 
 st.markdown("""
 <style>
-.signin-wrapper {
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.signin-box {
-    width: 480px;
-    max-width: 90vw;
+.block-container {
+    padding-top: 40px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 
 .signin-title {
     font-size: 64px;
     font-weight: 900;
     line-height: 0.95;
-    margin-bottom: 40px;
     text-transform: uppercase;
+    margin-bottom: 35px;
 }
 
-.signin-button-space {
-    height: 20px;
+.signin-form div.stButton {
+    margin-top: 18px;
+    margin-bottom: 20px;
+}
+
+.signin-form div.stButton > button {
+    width: 100% !important;
+    height: 58px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="signin-wrapper"><div class="signin-box">', unsafe_allow_html=True)
+left, middle, right = st.columns([1.5, 1, 1.5])
 
-st.markdown("""
-<div class="signin-title">
-    WELCOME<br>
-    BACK
-</div>
-""", unsafe_allow_html=True)
+with middle:
+    st.markdown('<div class="signin-title">WELCOME<br>BACK</div>', unsafe_allow_html=True)
 
-email = st.text_input("Email")
-password = st.text_input("Password", type="password")
+    st.markdown('<div class="signin-form">', unsafe_allow_html=True)
 
-if st.button("SIGN IN", use_container_width=True):
-    user = login_user(email, password)
+    email = st.text_input("Email", key="signin_email")
+    password = st.text_input("Password", type="password", key="signin_password")
 
-    if user:
-        st.session_state["user_id"] = user[0]
-        st.success("Login successful")
-        st.switch_page("pages/07_Home.py")
-    else:
-        st.error("Invalid email or password")
+    if st.button("SIGN IN", key="signin_button", use_container_width=True):
+        user = login_user(email, password)
 
-st.markdown('<div class="signin-button-space"></div>', unsafe_allow_html=True)
+        if user:
+            st.session_state["user_id"] = user[0]
+            st.success("Login successful")
+            st.switch_page("pages/07_Home.py")
+        else:
+            st.error("Invalid email or password")
 
-if st.button("FORGOT PASSWORD?", use_container_width=True):
-    st.switch_page("pages/13_Forgot_Password.py")
+    if st.button("FORGOT PASSWORD?", key="forgot_password_button", use_container_width=True):
+        st.switch_page("pages/13_Forgot_Password.py")
 
-st.markdown('<div class="signin-button-space"></div>', unsafe_allow_html=True)
+    if st.button("BACK TO WELCOME", key="back_to_welcome_button", use_container_width=True):
+        st.switch_page("main.py")
 
-if st.button("BACK TO WELCOME", use_container_width=True):
-    st.switch_page("main.py")
-
-st.markdown('</div></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
