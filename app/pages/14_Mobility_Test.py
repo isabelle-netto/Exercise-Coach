@@ -3,11 +3,14 @@ import mediapipe as mp
 import numpy as np
 import av
 import time
+import cv2
+import json
 from threading import Lock
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+import streamlit.components.v1 as components
 
 from ui import apply_style, bottom_nav
-from accessibility import accessibility_settings_panel, speak, screen_reader_status
+from accessibility import accessibility_settings_panel, screen_reader_status
 
 st.set_page_config(page_title="Mobility Test", layout="wide")
 apply_style()
@@ -16,6 +19,31 @@ st.title("Adaptive Mobility Test")
 accessibility_settings_panel()
 
 mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
+
+
+def speak_sequence(messages):
+    if not st.session_state.get("audio_feedback"):
+        return
+
+    safe_messages = json.dumps(messages)
+
+    components.html(f"""
+    <script>
+    window.speechSynthesis.cancel();
+
+    const messages = {safe_messages};
+
+    messages.forEach((item) => {{
+        setTimeout(() => {{
+            const speech = new SpeechSynthesisUtterance(item.text);
+            speech.rate = 0.85;
+            speech.volume = 1;
+            window.speechSynthesis.speak(speech);
+        }}, item.delay);
+    }});
+    </script>
+    """, height=0)
 
 
 def calculate_angle(a, b, c):
@@ -35,132 +63,6 @@ def calculate_angle(a, b, c):
 def get_landmark(landmarks, landmark):
     point = landmarks[landmark.value]
     return [point.x, point.y]
-
-
-def format_value(value, unit):
-    if value is None:
-        return "N/A"
-    if unit == "score":
-        return f"{int(value)}/100"
-    return f"{int(value)} degrees"
-
-
-if "mobility_results" not in st.session_state:
-    st.session_state["mobility_results"] = {}
-
-if "latest_result_message" not in st.session_state:
-    st.session_state["latest_result_message"] = ""
-
-
-test_position = st.radio(
-    "How will you perform the test?",
-    ["Seated", "Standing", "Supported / assisted"],
-    horizontal=True
-)
-
-available_limbs = st.multiselect(
-    "Which limbs can be tested today?",
-    ["Right arm", "Left arm", "Right leg", "Left leg"],
-    default=["Right arm", "Left arm", "Right leg", "Left leg"]
-)
-
-selected_side = st.radio(
-    "Which side do you want to test?",
-    ["Right", "Left"],
-    horizontal=True
-)
-
-if selected_side == "Right":
-    arm_available = "Right arm" in available_limbs
-    leg_available = "Right leg" in available_limbs
-else:
-    arm_available = "Left arm" in available_limbs
-    leg_available = "Left leg" in available_limbs
-
-possible_tests = []
-
-if arm_available:
-    possible_tests += [
-        "Shoulder Flexion",
-        "Shoulder Abduction",
-        "Elbow Flexion"
-    ]
-
-if leg_available:
-    possible_tests += [
-        "Hip Flexion",
-        "Knee Flexion",
-        "Knee Extension",
-        "Ankle Mobility"
-    ]
-
-if not possible_tests:
-    st.error("No available tests based on selected limb availability.")
-    bottom_nav()
-    st.stop()
-
-
-TESTS = {
-    "Shoulder Flexion": {
-        "instruction": "Lift your selected arm forward as high as comfortable and hold.",
-        "result": "Shoulder_Flexion",
-        "goal": "max",
-        "unit": "degrees"
-    },
-    "Shoulder Abduction": {
-        "instruction": "Lift your selected arm out to the side as high as comfortable and hold.",
-        "result": "Shoulder_Abduction",
-        "goal": "max",
-        "unit": "degrees"
-    },
-    "Elbow Flexion": {
-        "instruction": "Bend your selected elbow and bring your hand toward your shoulder. Hold the most bent position.",
-        "result": "Elbow_Flexion",
-        "goal": "min",
-        "unit": "degrees"
-    },
-    "Hip Flexion": {
-        "instruction": "Lift your selected knee upward toward your chest as high as comfortable and hold.",
-        "result": "Hip_Flexion",
-        "goal": "min",
-        "unit": "degrees"
-    },
-    "Knee Flexion": {
-        "instruction": "Bend your selected knee as much as comfortable and hold.",
-        "result": "Knee_Flexion",
-        "goal": "min",
-        "unit": "degrees"
-    },
-    "Knee Extension": {
-        "instruction": "Straighten your selected knee as much as comfortable and hold.",
-        "result": "Knee_Extension",
-        "goal": "max",
-        "unit": "degrees"
-    },
-    "Ankle Mobility": {
-        "instruction": "Move your selected foot through a comfortable toe point or toe lift position and hold.",
-        "result": "Ankle_Mobility",
-        "goal": "max",
-        "unit": "degrees"
-    }
-}
-
-test_name = st.selectbox("Choose mobility test", possible_tests)
-test = TESTS[test_name]
-
-st.markdown(f"""
-<div class="card">
-    <h3>{selected_side} {test_name}</h3>
-    <p><b>Instruction:</b> {test["instruction"]}</p>
-    <p><b>Countdown:</b> After pressing Start Measurement, you will have 6 seconds to get ready.</p>
-    <p><b>Recording:</b> The system records for 8 seconds.</p>
-</div>
-""", unsafe_allow_html=True)
-
-screen_reader_status(f"Selected test is {selected_side} {test_name}. {test['instruction']}")
-
-if st.button("Read Instructions Aloud", use_container_width=True):
-    speak(f"{selected_side} {test_name}. {test['instruction']} Recording starts after a six second countdown.")
 
 
 def get_side_points(landmarks, side):
@@ -207,12 +109,81 @@ def measure_test(test_name, landmarks, side):
     return None
 
 
+if "mobility_results" not in st.session_state:
+    st.session_state["mobility_results"] = {}
+
+test_position = st.radio(
+    "How will you perform the test?",
+    ["Seated", "Standing", "Supported / assisted"],
+    horizontal=True
+)
+
+available_limbs = st.multiselect(
+    "Which limbs can be tested today?",
+    ["Right arm", "Left arm", "Right leg", "Left leg"],
+    default=["Right arm", "Left arm", "Right leg", "Left leg"]
+)
+
+selected_side = st.radio(
+    "Which side do you want to test?",
+    ["Right", "Left"],
+    horizontal=True
+)
+
+if selected_side == "Right":
+    arm_available = "Right arm" in available_limbs
+    leg_available = "Right leg" in available_limbs
+else:
+    arm_available = "Left arm" in available_limbs
+    leg_available = "Left leg" in available_limbs
+
+possible_tests = []
+
+if arm_available:
+    possible_tests += ["Shoulder Flexion", "Shoulder Abduction", "Elbow Flexion"]
+
+if leg_available:
+    possible_tests += ["Hip Flexion", "Knee Flexion", "Knee Extension", "Ankle Mobility"]
+
+if not possible_tests:
+    st.error("No available tests based on selected limb availability.")
+    bottom_nav()
+    st.stop()
+
+TESTS = {
+    "Shoulder Flexion": {"instruction": "Lift your selected arm forward as high as comfortable and hold.", "result": "Shoulder_Flexion", "goal": "max"},
+    "Shoulder Abduction": {"instruction": "Lift your selected arm out to the side as high as comfortable and hold.", "result": "Shoulder_Abduction", "goal": "max"},
+    "Elbow Flexion": {"instruction": "Bend your selected elbow and bring your hand toward your shoulder.", "result": "Elbow_Flexion", "goal": "min"},
+    "Hip Flexion": {"instruction": "Lift your selected knee upward toward your chest as high as comfortable.", "result": "Hip_Flexion", "goal": "min"},
+    "Knee Flexion": {"instruction": "Bend your selected knee as much as comfortable.", "result": "Knee_Flexion", "goal": "min"},
+    "Knee Extension": {"instruction": "Straighten your selected knee as much as comfortable.", "result": "Knee_Extension", "goal": "max"},
+    "Ankle Mobility": {"instruction": "Move your selected foot through a comfortable toe point or toe lift position.", "result": "Ankle_Mobility", "goal": "max"},
+}
+
+test_name = st.selectbox("Choose mobility test", possible_tests)
+test = TESTS[test_name]
+
+st.markdown(f"""
+<div class="card">
+    <h3>{selected_side} {test_name}</h3>
+    <p><b>Instruction:</b> {test["instruction"]}</p>
+    <p><b>Get ready:</b> 6 seconds</p>
+    <p><b>Recording:</b> 8 seconds</p>
+</div>
+""", unsafe_allow_html=True)
+
+screen_reader_status(f"Selected test is {selected_side} {test_name}. {test['instruction']}")
+
+
 class MobilityProcessor:
     def __init__(self):
         self.lock = Lock()
         self.pose = mp_pose.Pose(
-            min_detection_confidence=0.6,
-            min_tracking_confidence=0.6
+            static_image_mode=False,
+            model_complexity=1,
+            enable_segmentation=False,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
         )
 
         self.phase = "idle"
@@ -221,7 +192,8 @@ class MobilityProcessor:
         self.best_value = None
         self.current_value = None
         self.done_value = None
-        self.status = "Ready"
+        self.status = "Ready. Press Start Measurement."
+        self.pose_detected = False
 
     def start_measurement(self):
         with self.lock:
@@ -241,65 +213,96 @@ class MobilityProcessor:
             self.best_value = None
             self.current_value = None
             self.done_value = None
-            self.status = "Ready"
+            self.status = "Ready. Press Start Measurement."
+            self.pose_detected = False
 
     def recv(self, frame):
         image = frame.to_ndarray(format="rgb24")
-        results = self.pose.process(image)
+        image = cv2.flip(image, 1)
 
+        results = self.pose.process(image)
         now = time.time()
+
+        if results.pose_landmarks:
+            self.pose_detected = True
+            mp_drawing.draw_landmarks(
+                image,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS
+            )
+        else:
+            self.pose_detected = False
 
         with self.lock:
             phase = self.phase
 
-        if phase == "countdown":
-            with self.lock:
+            if phase == "idle":
+                self.status = "Ready. Press Start Measurement."
+
+            elif phase == "countdown":
                 elapsed = now - self.countdown_start
                 remaining = max(0, 6 - int(elapsed))
-                self.status = f"Countdown. Recording starts in {remaining} seconds."
+
+                self.status = f"Get ready. Recording starts in {remaining} seconds."
 
                 if elapsed >= 6:
                     self.phase = "recording"
                     self.recording_start = now
-                    self.status = "Start now. Recording started."
+                    self.status = "Recording started."
 
-        elif phase == "recording":
-            value = None
-
-            if results.pose_landmarks:
-                value = measure_test(
-                    test_name,
-                    results.pose_landmarks.landmark,
-                    selected_side
-                )
-
-            with self.lock:
+            elif phase == "recording":
                 elapsed = now - self.recording_start
                 remaining = max(0, 8 - int(elapsed))
 
-                if value is not None:
-                    self.current_value = value
+                if results.pose_landmarks:
+                    value = measure_test(
+                        test_name,
+                        results.pose_landmarks.landmark,
+                        selected_side
+                    )
 
-                    if self.best_value is None:
-                        self.best_value = value
-                    elif test["goal"] == "max":
-                        self.best_value = max(self.best_value, value)
-                    else:
-                        self.best_value = min(self.best_value, value)
+                    if value is not None:
+                        self.current_value = value
 
-                self.status = f"Recording. Time left {remaining} seconds."
+                        if self.best_value is None:
+                            self.best_value = value
+                        elif test["goal"] == "max":
+                            self.best_value = max(self.best_value, value)
+                        else:
+                            self.best_value = min(self.best_value, value)
+
+                self.status = f"Recording. Time left: {remaining} seconds."
 
                 if elapsed >= 8:
                     self.phase = "done"
                     self.done_value = self.best_value
-                    self.status = "Test completed."
 
-        elif phase == "done":
-            with self.lock:
+                    if self.done_value is not None:
+                        self.status = f"Test completed. Result: {int(self.done_value)} degrees."
+                    else:
+                        self.status = "Test completed. No pose detected."
+
+            elif phase == "done":
                 if self.done_value is not None:
-                    self.status = f"Test completed. Result {format_value(self.done_value, test['unit'])}."
+                    self.status = f"Test completed. Result: {int(self.done_value)} degrees."
                 else:
                     self.status = "Test completed. No pose detected."
+
+            status_text = self.status
+            current_value = self.current_value
+            pose_detected = self.pose_detected
+
+        if pose_detected:
+            pose_text = "Pose detected"
+        else:
+            pose_text = "No pose detected"
+
+        cv2.rectangle(image, (20, 20), (760, 120), (0, 0, 0), -1)
+        cv2.putText(image, status_text, (35, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        cv2.putText(image, pose_text, (35, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+        if current_value is not None:
+            cv2.putText(image, f"Current angle: {int(current_value)} degrees", (35, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
         return av.VideoFrame.from_ndarray(image, format="rgb24")
 
@@ -317,9 +320,9 @@ ctx = webrtc_streamer(
     async_processing=True,
 )
 
-st.info("Click START on the camera box and allow camera permission.")
+st.info("Click START on the camera box first, allow camera permission, then press Start Measurement.")
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     start_pressed = st.button("Start Measurement", use_container_width=True)
@@ -327,52 +330,59 @@ with col1:
 with col2:
     reset_pressed = st.button("Reset Measurement", use_container_width=True)
 
-with col3:
-    skip_pressed = st.button("Skip This Test", use_container_width=True)
-
 if start_pressed and ctx.video_processor:
     ctx.video_processor.start_measurement()
-    speak("Get ready. Six. Five. Four. Three. Two. One. Start now.")
+
+    speak_sequence([
+        {"text": "Get ready. Recording starts in six seconds.", "delay": 0},
+        {"text": "Six", "delay": 1000},
+        {"text": "Five", "delay": 2000},
+        {"text": "Four", "delay": 3000},
+        {"text": "Three", "delay": 4000},
+        {"text": "Two", "delay": 5000},
+        {"text": "One. Start now.", "delay": 6000},
+        {"text": "Recording. Eight seconds remaining.", "delay": 7000},
+        {"text": "Seven", "delay": 8000},
+        {"text": "Six", "delay": 9000},
+        {"text": "Five", "delay": 10000},
+        {"text": "Four", "delay": 11000},
+        {"text": "Three", "delay": 12000},
+        {"text": "Two", "delay": 13000},
+        {"text": "One", "delay": 14000},
+        {"text": "Test completed.", "delay": 15000},
+    ])
 
 if reset_pressed and ctx.video_processor:
     ctx.video_processor.reset()
-    speak("Measurement reset.")
-
-if skip_pressed:
-    result_key = f"{selected_side}_{test['result']}"
-    st.session_state["mobility_results"][result_key] = {
-        "value": "Skipped",
-        "unit": "skipped"
-    }
-    st.warning(f"{result_key} skipped.")
+    speak_sequence([{"text": "Measurement reset.", "delay": 0}])
 
 if ctx.video_processor:
     with ctx.video_processor.lock:
         status = ctx.video_processor.status
         done_value = ctx.video_processor.done_value
         phase = ctx.video_processor.phase
+        pose_detected = ctx.video_processor.pose_detected
 
+    st.subheader("Test Status")
     st.info(status)
-    screen_reader_status(status)
 
-    if phase == "done" and done_value is not None:
+    if pose_detected:
+        st.success("Pose detected.")
+    else:
+        st.warning("No pose detected yet. Make sure your full body or tested limb is visible.")
+
+    if phase == "done":
         result_key = f"{selected_side}_{test['result']}"
 
-        st.session_state["mobility_results"][result_key] = {
-            "value": int(done_value),
-            "unit": test["unit"]
-        }
+        if done_value is not None:
+            st.session_state["mobility_results"][result_key] = {
+                "value": int(done_value),
+                "unit": "degrees"
+            }
 
-        message = f"{result_key}: {format_value(done_value, test['unit'])}"
-        st.session_state["latest_result_message"] = message
-        st.success(message)
-
-st.subheader("Latest Result")
-
-if st.session_state.get("latest_result_message"):
-    st.success(st.session_state["latest_result_message"])
-else:
-    st.info("No completed result yet.")
+            st.success(f"{result_key}: {int(done_value)} degrees")
+        else:
+            st.error("No pose was detected clearly enough. Try again with better lighting and more distance from the camera.")
 
 st.subheader("Saved Mobility Results")
 
