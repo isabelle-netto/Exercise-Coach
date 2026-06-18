@@ -24,42 +24,58 @@ mp_drawing = mp.solutions.drawing_utils
 
 def speak(text):
     if not st.session_state.get("audio_feedback"):
+        st.warning("Audio feedback is turned off. Enable it in Accessibility Settings.")
         return
 
     safe_text = json.dumps(text)
+    unique_key = str(time.time()).replace(".", "")
 
-    components.html(f"""
-    <script>
-    window.speechSynthesis.cancel();
-    const message = new SpeechSynthesisUtterance({safe_text});
-    message.rate = 0.85;
-    message.volume = 1;
-    window.speechSynthesis.speak(message);
-    </script>
-    """, height=0)
+    components.html(
+        f"""
+        <div id="speech-{unique_key}"></div>
+        <script>
+        setTimeout(() => {{
+            const utterance = new SpeechSynthesisUtterance({safe_text});
+            utterance.rate = 0.9;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+        }}, 200);
+        </script>
+        """,
+        height=1
+    )
 
 
 def speak_sequence(messages):
     if not st.session_state.get("audio_feedback"):
+        st.warning("Audio feedback is turned off. Enable it in Accessibility Settings.")
         return
 
     safe_messages = json.dumps(messages)
+    unique_key = str(time.time()).replace(".", "")
 
-    components.html(f"""
-    <script>
-    window.speechSynthesis.cancel();
-    const messages = {safe_messages};
+    components.html(
+        f"""
+        <div id="speech-sequence-{unique_key}"></div>
+        <script>
+        window.speechSynthesis.cancel();
+        const messages = {safe_messages};
 
-    messages.forEach((item) => {{
-        setTimeout(() => {{
-            const speech = new SpeechSynthesisUtterance(item.text);
-            speech.rate = 0.85;
-            speech.volume = 1;
-            window.speechSynthesis.speak(speech);
-        }}, item.delay);
-    }});
-    </script>
-    """, height=0)
+        messages.forEach((item) => {{
+            setTimeout(() => {{
+                const speech = new SpeechSynthesisUtterance(item.text);
+                speech.rate = 0.9;
+                speech.pitch = 1;
+                speech.volume = 1;
+                window.speechSynthesis.speak(speech);
+            }}, item.delay);
+        }});
+        </script>
+        """,
+        height=1
+    )
 
 
 def calculate_angle(a, b, c):
@@ -278,8 +294,8 @@ class MobilityProcessor:
             static_image_mode=False,
             model_complexity=1,
             enable_segmentation=False,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_detection_confidence=0.45,
+            min_tracking_confidence=0.45
         )
 
         self.phase = "idle"
@@ -337,7 +353,6 @@ class MobilityProcessor:
             elif self.phase == "countdown":
                 elapsed = now - self.countdown_start
                 remaining = max(0, 6 - int(elapsed))
-
                 self.status = f"Get ready. Recording starts in {remaining} seconds."
 
                 if elapsed >= 6:
@@ -373,13 +388,13 @@ class MobilityProcessor:
                     self.done_value = self.best_value
 
                     if self.done_value is not None:
-                        self.status = f"Test completed. Result: {int(self.done_value)} degrees."
+                        self.status = f"Test completed. Best result: {int(self.done_value)} degrees."
                     else:
                         self.status = "Test completed. No pose detected."
 
             elif self.phase == "done":
                 if self.done_value is not None:
-                    self.status = f"Test completed. Result: {int(self.done_value)} degrees."
+                    self.status = f"Test completed. Best result: {int(self.done_value)} degrees."
                 else:
                     self.status = "Test completed. No pose detected."
 
@@ -388,29 +403,42 @@ class MobilityProcessor:
             pose_detected = self.pose_detected
 
         if pose_detected:
-            pose_text = "Pose detected"
+            pose_text = "POSE DETECTED"
+            pose_colour = (0, 255, 0)
         else:
-            pose_text = "No pose detected"
+            pose_text = "NO POSE DETECTED"
+            pose_colour = (0, 0, 255)
 
-        cv2.rectangle(image, (15, 15), (760, 125), (0, 0, 0), -1)
+        cv2.rectangle(image, (10, 10), (950, 210), (0, 0, 0), -1)
 
         cv2.putText(
             image,
-            status_text,
+            status_text[:60],
             (30, 55),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.75,
+            0.72,
             (255, 255, 255),
             2
         )
 
+        if len(status_text) > 60:
+            cv2.putText(
+                image,
+                status_text[60:120],
+                (30, 95),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.72,
+                (255, 255, 255),
+                2
+            )
+
         cv2.putText(
             image,
             pose_text,
-            (30, 95),
+            (30, 140),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.65,
-            (255, 255, 255),
+            0.72,
+            pose_colour,
             2
         )
 
@@ -418,9 +446,9 @@ class MobilityProcessor:
             cv2.putText(
                 image,
                 f"Current angle: {int(current_value)} degrees",
-                (30, 135),
+                (30, 180),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
+                0.68,
                 (255, 255, 255),
                 2
             )
@@ -464,8 +492,9 @@ with right:
         <p><b>Instruction:</b> {test["instruction"]}</p>
         <p><b>Get ready time:</b> 6 seconds</p>
         <p><b>Recording time:</b> 8 seconds</p>
+        <p><b>Scoring:</b> The system records your best angle across the full 8-second test, not only the final frame.</p>
         <p class="small-note">
-            Make sure the tested limb is visible in the camera. Use good lighting and stand or sit slightly further away if pose detection does not appear.
+            Make sure the tested limb is visible in the camera. Use good lighting and sit or stand slightly further away if pose detection does not appear.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -475,7 +504,8 @@ with right:
             f"{selected_side} {test_name}. "
             f"{test['instruction']} "
             "Recording starts after a six second countdown. "
-            "The test will record for eight seconds."
+            "The test will record for eight seconds. "
+            "The system records your best angle across the full test."
         )
 
     start_pressed = st.button("Start Measurement", use_container_width=True)
@@ -518,7 +548,15 @@ with right:
             pose_detected = ctx.video_processor.pose_detected
             current_value = ctx.video_processor.current_value
 
-        st.info(status)
+        if phase == "countdown":
+            st.warning(status)
+        elif phase == "recording":
+            st.info(status)
+        elif phase == "done":
+            st.success(status)
+        else:
+            st.write(status)
+
         screen_reader_status(status)
 
         if pose_detected:
@@ -542,7 +580,7 @@ with right:
 
                 if st.session_state["last_spoken_done"] != result_key:
                     speak(
-                        f"Test complete. Your result is {int(done_value)} degrees."
+                        f"Test complete. Your best result is {int(done_value)} degrees."
                     )
                     st.session_state["last_spoken_done"] = result_key
 
