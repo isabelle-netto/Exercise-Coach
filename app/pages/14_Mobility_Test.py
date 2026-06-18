@@ -24,7 +24,6 @@ mp_drawing = mp.solutions.drawing_utils
 
 def speak(text):
     if not st.session_state.get("audio_feedback"):
-        st.warning("Audio feedback is turned off. Enable it in Accessibility Settings.")
         return
 
     safe_text = json.dumps(text)
@@ -35,43 +34,13 @@ def speak(text):
         <div id="speech-{unique_key}"></div>
         <script>
         setTimeout(() => {{
+            window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance({safe_text});
             utterance.rate = 0.9;
             utterance.pitch = 1;
             utterance.volume = 1;
-            window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utterance);
-        }}, 200);
-        </script>
-        """,
-        height=1,
-    )
-
-
-def speak_sequence(messages):
-    if not st.session_state.get("audio_feedback"):
-        st.warning("Audio feedback is turned off. Enable it in Accessibility Settings.")
-        return
-
-    safe_messages = json.dumps(messages)
-    unique_key = str(time.time()).replace(".", "")
-
-    components.html(
-        f"""
-        <div id="speech-sequence-{unique_key}"></div>
-        <script>
-        window.speechSynthesis.cancel();
-        const messages = {safe_messages};
-
-        messages.forEach((item) => {{
-            setTimeout(() => {{
-                const speech = new SpeechSynthesisUtterance(item.text);
-                speech.rate = 0.9;
-                speech.pitch = 1;
-                speech.volume = 1;
-                window.speechSynthesis.speak(speech);
-            }}, item.delay);
-        }});
+        }}, 150);
         </script>
         """,
         height=1,
@@ -148,48 +117,36 @@ def measure_test(test_name, landmarks, side):
 if "mobility_results" not in st.session_state:
     st.session_state["mobility_results"] = {}
 
-if "last_spoken_done" not in st.session_state:
-    st.session_state["last_spoken_done"] = None
-
-
 TESTS = {
     "Shoulder Flexion": {
-        "instruction": "Lift your selected arm forward as high as comfortable and hold.",
+        "instruction": "Start with your arm relaxed. When recording begins, lift your selected arm forward as high as comfortable.",
         "result": "Shoulder_Flexion",
-        "goal": "max",
     },
     "Shoulder Abduction": {
-        "instruction": "Lift your selected arm out to the side as high as comfortable and hold.",
+        "instruction": "Start with your arm relaxed. When recording begins, lift your selected arm out to the side as high as comfortable.",
         "result": "Shoulder_Abduction",
-        "goal": "max",
     },
     "Elbow Flexion": {
-        "instruction": "Bend your selected elbow and bring your hand toward your shoulder.",
+        "instruction": "Start with your arm relaxed. When recording begins, bend your selected elbow toward your shoulder.",
         "result": "Elbow_Flexion",
-        "goal": "min",
     },
     "Hip Flexion": {
-        "instruction": "Lift your selected knee upward toward your chest as high as comfortable.",
+        "instruction": "Start in a relaxed seated or standing position. When recording begins, lift your selected knee upward.",
         "result": "Hip_Flexion",
-        "goal": "min",
     },
     "Knee Flexion": {
-        "instruction": "Bend your selected knee as much as comfortable.",
+        "instruction": "Start with your leg relaxed. When recording begins, bend your selected knee as much as comfortable.",
         "result": "Knee_Flexion",
-        "goal": "min",
     },
     "Knee Extension": {
-        "instruction": "Straighten your selected knee as much as comfortable.",
+        "instruction": "Start with your knee bent slightly. When recording begins, straighten your selected knee as much as comfortable.",
         "result": "Knee_Extension",
-        "goal": "max",
     },
     "Ankle Mobility": {
-        "instruction": "Move your selected foot through a comfortable toe point or toe lift position.",
+        "instruction": "Start with your foot relaxed. When recording begins, move your selected foot through a comfortable toe point or toe lift.",
         "result": "Ankle_Mobility",
-        "goal": "max",
     },
 }
-
 
 st.markdown(
     """
@@ -227,21 +184,18 @@ button {
     unsafe_allow_html=True,
 )
 
-
 top1, top2, top3 = st.columns(3)
 
 with top1:
     test_position = st.radio(
         "How will you perform the test?",
         ["Seated", "Standing", "Supported / assisted"],
-        horizontal=False,
     )
 
 with top2:
     selected_side = st.radio(
         "Which side do you want to test?",
         ["Right", "Left"],
-        horizontal=False,
     )
 
 with top3:
@@ -250,7 +204,6 @@ with top3:
         ["Right arm", "Left arm", "Right leg", "Left leg"],
         default=["Right arm", "Left arm", "Right leg", "Left leg"],
     )
-
 
 if selected_side == "Right":
     arm_available = "Right arm" in available_limbs
@@ -262,19 +215,10 @@ else:
 possible_tests = []
 
 if arm_available:
-    possible_tests += [
-        "Shoulder Flexion",
-        "Shoulder Abduction",
-        "Elbow Flexion",
-    ]
+    possible_tests += ["Shoulder Flexion", "Shoulder Abduction", "Elbow Flexion"]
 
 if leg_available:
-    possible_tests += [
-        "Hip Flexion",
-        "Knee Flexion",
-        "Knee Extension",
-        "Ankle Mobility",
-    ]
+    possible_tests += ["Hip Flexion", "Knee Flexion", "Knee Extension", "Ankle Mobility"]
 
 if not possible_tests:
     st.error("No available tests based on selected limb availability.")
@@ -304,42 +248,52 @@ class MobilityProcessor:
         self.phase = "idle"
         self.countdown_start = None
         self.recording_start = None
-        self.best_value = None
-        self.current_value = None
+
+        self.baseline_angle = None
+        self.current_angle = None
+        self.best_movement = None
         self.done_value = None
-        self.status = "Ready. Press Start Measurement."
+
         self.pose_detected = False
+        self.status = "Ready. Start the camera, then press Start Measurement."
 
     def start_measurement(self):
         with self.lock:
             self.phase = "countdown"
             self.countdown_start = time.time()
             self.recording_start = None
-            self.best_value = None
-            self.current_value = None
+
+            self.baseline_angle = None
+            self.current_angle = None
+            self.best_movement = None
             self.done_value = None
-            self.status = "Get ready. Recording starts in 6 seconds."
+
+            self.status = "Get ready. Stay still for baseline reading."
 
     def reset(self):
         with self.lock:
             self.phase = "idle"
             self.countdown_start = None
             self.recording_start = None
-            self.best_value = None
-            self.current_value = None
+
+            self.baseline_angle = None
+            self.current_angle = None
+            self.best_movement = None
             self.done_value = None
-            self.status = "Ready. Press Start Measurement."
+
             self.pose_detected = False
+            self.status = "Ready. Start the camera, then press Start Measurement."
 
     def get_latest_result(self):
         with self.lock:
             return {
                 "phase": self.phase,
-                "done_value": self.done_value,
-                "current_value": self.current_value,
-                "best_value": self.best_value,
-                "pose_detected": self.pose_detected,
                 "status": self.status,
+                "pose_detected": self.pose_detected,
+                "baseline_angle": self.baseline_angle,
+                "current_angle": self.current_angle,
+                "best_movement": self.best_movement,
+                "done_value": self.done_value,
             }
 
     def recv(self, frame):
@@ -349,6 +303,8 @@ class MobilityProcessor:
         results = self.pose.process(image)
         now = time.time()
 
+        detected_angle = None
+
         if results.pose_landmarks:
             self.pose_detected = True
 
@@ -356,6 +312,12 @@ class MobilityProcessor:
                 image,
                 results.pose_landmarks,
                 mp_pose.POSE_CONNECTIONS,
+            )
+
+            detected_angle = measure_test(
+                test_name,
+                results.pose_landmarks.landmark,
+                selected_side,
             )
         else:
             self.pose_detected = False
@@ -367,61 +329,55 @@ class MobilityProcessor:
             elif self.phase == "countdown":
                 elapsed = now - self.countdown_start
                 remaining = max(0, 6 - int(elapsed))
-                self.status = f"Get ready. Recording starts in {remaining} seconds."
+
+                self.status = f"Get ready. Stay still. Test starts in {remaining} seconds."
+
+                if detected_angle is not None:
+                    self.baseline_angle = detected_angle
 
                 if elapsed >= 6:
                     self.phase = "recording"
                     self.recording_start = now
-                    self.status = "Recording started. 8 seconds remaining."
+                    self.status = "Recording. Move now."
 
             elif self.phase == "recording":
                 elapsed = now - self.recording_start
                 remaining = max(0, 8 - int(elapsed))
 
-                if results.pose_landmarks:
-                    value = measure_test(
-                        test_name,
-                        results.pose_landmarks.landmark,
-                        selected_side,
-                    )
+                if detected_angle is not None and self.baseline_angle is not None:
+                    self.current_angle = detected_angle
+                    movement = abs(detected_angle - self.baseline_angle)
 
-                    if value is not None:
-                        self.current_value = value
+                    if movement < 5:
+                        movement = 0
 
-                        if self.best_value is None:
-                            self.best_value = value
-                        elif test["goal"] == "max":
-                            self.best_value = max(self.best_value, value)
-                        else:
-                            self.best_value = min(self.best_value, value)
+                    if self.best_movement is None:
+                        self.best_movement = movement
+                    else:
+                        self.best_movement = max(self.best_movement, movement)
 
-                self.status = f"Recording. Time left: {remaining} seconds."
+                self.status = f"Recording. Move now. Time left: {remaining} seconds."
 
                 if elapsed >= 8:
                     self.phase = "done"
-                    self.done_value = self.best_value
 
-                    if self.done_value is not None:
-                        self.status = (
-                            f"Test completed. Best result: "
-                            f"{int(self.done_value)} degrees."
-                        )
+                    if self.best_movement is not None:
+                        self.done_value = self.best_movement
+                        self.status = f"Test completed. Movement range: {int(self.done_value)} degrees."
                     else:
-                        self.status = "Test completed. No pose detected."
+                        self.status = "Test completed. No clear movement detected."
 
             elif self.phase == "done":
                 if self.done_value is not None:
-                    self.status = (
-                        f"Test completed. Best result: "
-                        f"{int(self.done_value)} degrees."
-                    )
+                    self.status = f"Test completed. Movement range: {int(self.done_value)} degrees."
                 else:
-                    self.status = "Test completed. No pose detected."
+                    self.status = "Test completed. No clear movement detected."
 
             status_text = self.status
-            current_value = self.current_value
-            best_value = self.best_value
             pose_detected = self.pose_detected
+            baseline_angle = self.baseline_angle
+            current_angle = self.current_angle
+            best_movement = self.best_movement
 
         if pose_detected:
             pose_text = "POSE DETECTED"
@@ -430,14 +386,14 @@ class MobilityProcessor:
             pose_text = "NO POSE DETECTED"
             pose_colour = (0, 0, 255)
 
-        cv2.rectangle(image, (10, 10), (950, 235), (0, 0, 0), -1)
+        cv2.rectangle(image, (10, 10), (960, 245), (0, 0, 0), -1)
 
         cv2.putText(
             image,
             status_text[:60],
             (30, 55),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.72,
+            0.68,
             (255, 255, 255),
             2,
         )
@@ -446,9 +402,9 @@ class MobilityProcessor:
             cv2.putText(
                 image,
                 status_text[60:120],
-                (30, 95),
+                (30, 90),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.72,
+                0.68,
                 (255, 255, 255),
                 2,
             )
@@ -456,31 +412,42 @@ class MobilityProcessor:
         cv2.putText(
             image,
             pose_text,
-            (30, 140),
+            (30, 130),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.72,
             pose_colour,
             2,
         )
 
-        if current_value is not None:
+        if baseline_angle is not None:
             cv2.putText(
                 image,
-                f"Current angle: {int(current_value)} degrees",
-                (30, 180),
+                f"Baseline angle: {int(baseline_angle)} degrees",
+                (30, 170),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.68,
+                0.62,
                 (255, 255, 255),
                 2,
             )
 
-        if best_value is not None:
+        if current_angle is not None:
             cv2.putText(
                 image,
-                f"Best angle so far: {int(best_value)} degrees",
-                (30, 215),
+                f"Current angle: {int(current_angle)} degrees",
+                (30, 205),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.68,
+                0.62,
+                (255, 255, 255),
+                2,
+            )
+
+        if best_movement is not None:
+            cv2.putText(
+                image,
+                f"Best movement: {int(best_movement)} degrees",
+                (30, 240),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.62,
                 (255, 255, 255),
                 2,
             )
@@ -491,7 +458,6 @@ class MobilityProcessor:
 RTC_CONFIGURATION = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
-
 
 left, right = st.columns([3, 2])
 
@@ -513,9 +479,7 @@ with left:
         async_processing=True,
     )
 
-    st.caption(
-        "Click START inside the camera box first and allow browser camera permission."
-    )
+    st.caption("Click START inside the camera box first and allow browser camera permission.")
 
 with right:
     st.markdown(
@@ -523,12 +487,9 @@ with right:
     <div class="mobility-card">
         <h3>{selected_side} {test_name}</h3>
         <p><b>Instruction:</b> {test["instruction"]}</p>
-        <p><b>Get ready time:</b> 6 seconds</p>
-        <p><b>Recording time:</b> 8 seconds</p>
-        <p><b>Scoring:</b> The system records your best angle across the full 8-second test, not only the final frame.</p>
-        <p class="small-note">
-            Make sure the tested limb is visible in the camera. Use good lighting and sit or stand slightly further away if pose detection does not appear.
-        </p>
+        <p><b>Baseline:</b> Stay still during the 6-second countdown.</p>
+        <p><b>Recording:</b> Move only when the screen says “Recording. Move now.”</p>
+        <p><b>Scoring:</b> The result is your movement range from the starting baseline.</p>
     </div>
     """,
         unsafe_allow_html=True,
@@ -536,43 +497,28 @@ with right:
 
     if st.button("Read Instructions Aloud", use_container_width=True):
         speak(
-            f"{selected_side} {test_name}. "
-            f"{test['instruction']} "
-            "Recording starts after a six second countdown. "
-            "The test will record for eight seconds. "
-            "The system records your best angle across the full test."
+            f"{selected_side} {test_name}. {test['instruction']} "
+            "Stay still during the six second countdown. "
+            "Move only when the screen says recording. Move now. "
+            "The test records for eight seconds."
         )
 
     start_pressed = st.button("Start Measurement", use_container_width=True)
     reset_pressed = st.button("Reset Measurement", use_container_width=True)
 
-    if start_pressed and ctx.video_processor:
-        ctx.video_processor.start_measurement()
+    if start_pressed:
+        if ctx.video_processor:
+            ctx.video_processor.start_measurement()
+            speak("Measurement started. Stay still during the countdown. Move only when the screen says recording.")
+        else:
+            st.warning("Start the camera first.")
 
-        speak_sequence(
-            [
-                {"text": "Get ready. Six.", "delay": 0},
-                {"text": "Five", "delay": 1000},
-                {"text": "Four", "delay": 2000},
-                {"text": "Three", "delay": 3000},
-                {"text": "Two", "delay": 4000},
-                {"text": "One", "delay": 5000},
-                {"text": "Start now.", "delay": 6000},
-                {"text": "Seven", "delay": 7000},
-                {"text": "Six", "delay": 8000},
-                {"text": "Five", "delay": 9000},
-                {"text": "Four", "delay": 10000},
-                {"text": "Three", "delay": 11000},
-                {"text": "Two", "delay": 12000},
-                {"text": "One", "delay": 13000},
-                {"text": "Test completed.", "delay": 14000},
-            ]
-        )
-
-    if reset_pressed and ctx.video_processor:
-        ctx.video_processor.reset()
-        st.session_state["last_spoken_done"] = None
-        speak("Measurement reset.")
+    if reset_pressed:
+        if ctx.video_processor:
+            ctx.video_processor.reset()
+            speak("Measurement reset.")
+        else:
+            st.warning("Start the camera first.")
 
     st.markdown("### Test Status")
 
@@ -580,11 +526,12 @@ with right:
         latest = ctx.video_processor.get_latest_result()
 
         status = latest["status"]
-        done_value = latest["done_value"]
         phase = latest["phase"]
         pose_detected = latest["pose_detected"]
-        current_value = latest["current_value"]
-        best_value = latest["best_value"]
+        baseline_angle = latest["baseline_angle"]
+        current_angle = latest["current_angle"]
+        best_movement = latest["best_movement"]
+        done_value = latest["done_value"]
 
         if phase == "countdown":
             st.warning(status)
@@ -602,52 +549,47 @@ with right:
         else:
             st.warning("No pose detected yet.")
 
-        if current_value is not None:
-            st.write(f"Current angle: **{int(current_value)} degrees**")
+        if baseline_angle is not None:
+            st.write(f"Baseline angle: **{int(baseline_angle)} degrees**")
 
-        if best_value is not None:
-            st.write(f"Best angle so far: **{int(best_value)} degrees**")
+        if current_angle is not None:
+            st.write(f"Current angle: **{int(current_angle)} degrees**")
 
-        if phase == "done":
-            if done_value is not None:
-                st.success(f"Latest result: **{int(done_value)} degrees**")
-            else:
-                st.error(
-                    "No pose was detected clearly enough. Try again with better lighting and more distance from the camera."
-                )
+        if best_movement is not None:
+            st.write(f"Best movement so far: **{int(best_movement)} degrees**")
+
+        if phase == "done" and done_value is not None:
+            st.success(f"Latest result: **{int(done_value)} degrees movement range**")
 
     else:
         st.warning("Start the camera first before pressing Start Measurement.")
-
 
 st.divider()
 
 if st.button("Save Latest Test Result", use_container_width=True):
     if ctx.video_processor:
         latest = ctx.video_processor.get_latest_result()
-
         done_value = latest["done_value"]
         phase = latest["phase"]
 
         if phase != "done":
-            st.warning("The test is not completed yet. Please wait until the test finishes.")
+            st.warning("The test is not completed yet. Please wait until it finishes.")
 
         elif done_value is None:
-            st.error("No clear pose result was detected. Please retake the test.")
+            st.error("No clear movement result was detected. Please retake the test.")
 
         else:
             result_key = f"{selected_side}_{test['result']}"
 
             st.session_state["mobility_results"][result_key] = {
                 "value": int(done_value),
-                "unit": "degrees",
+                "unit": "degrees movement range",
             }
 
-            st.success(f"Saved {result_key}: {int(done_value)} degrees.")
-            speak(f"Saved result. {int(done_value)} degrees.")
+            st.success(f"Saved {result_key}: {int(done_value)} degrees movement range.")
+            speak(f"Saved result. {int(done_value)} degrees movement range.")
     else:
         st.warning("Start the camera first.")
-
 
 st.subheader("Saved Mobility Results")
 
