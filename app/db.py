@@ -245,6 +245,105 @@ def get_exercises_with_equipment():
     return rows
 
 
+def save_mobility_result(user_id, test_key, starting_angle, safe_limit_angle, rom, direction):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS MobilityResult (
+            MobilityResultID INTEGER PRIMARY KEY AUTOINCREMENT,
+            UserID INTEGER NOT NULL,
+            TestKey TEXT NOT NULL,
+            StartingAngle INTEGER,
+            SafeLimitAngle INTEGER,
+            ROM INTEGER,
+            Direction TEXT,
+            CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(UserID, TestKey)
+        )
+    """)
+
+    cur.execute("""
+        INSERT INTO MobilityResult (
+            UserID, TestKey, StartingAngle, SafeLimitAngle, ROM, Direction
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(UserID, TestKey)
+        DO UPDATE SET
+            StartingAngle = excluded.StartingAngle,
+            SafeLimitAngle = excluded.SafeLimitAngle,
+            ROM = excluded.ROM,
+            Direction = excluded.Direction,
+            UpdatedAt = CURRENT_TIMESTAMP
+    """, (
+        user_id,
+        test_key,
+        starting_angle,
+        safe_limit_angle,
+        rom,
+        direction
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_user_mobility_results(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS MobilityResult (
+            MobilityResultID INTEGER PRIMARY KEY AUTOINCREMENT,
+            UserID INTEGER NOT NULL,
+            TestKey TEXT NOT NULL,
+            StartingAngle INTEGER,
+            SafeLimitAngle INTEGER,
+            ROM INTEGER,
+            Direction TEXT,
+            CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(UserID, TestKey)
+        )
+    """)
+
+    cur.execute("""
+        SELECT TestKey, StartingAngle, SafeLimitAngle, ROM, Direction
+        FROM MobilityResult
+        WHERE UserID = ?
+    """, (user_id,))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    results = {}
+
+    for test_key, starting_angle, safe_limit_angle, rom, direction in rows:
+        results[test_key] = {
+            "starting_angle": starting_angle,
+            "safe_limit_angle": safe_limit_angle,
+            "rom": rom,
+            "direction": direction
+        }
+
+    return results
+
+
+def load_mobility_results_to_session(user_id):
+    results = get_user_mobility_results(user_id)
+
+    for key, result in results.items():
+        import streamlit as st
+
+        st.session_state[f"{key}_starting_angle"] = result["starting_angle"]
+        st.session_state[f"{key}_safe_limit_angle"] = result["safe_limit_angle"]
+        st.session_state[f"{key}_rom"] = result["rom"]
+        st.session_state[f"{key}_direction"] = result["direction"]
+
+    return results
+
+
 def get_recommended_exercises(user_id):
     import streamlit as st
 
@@ -255,7 +354,7 @@ def get_recommended_exercises(user_id):
     limitation = get_user_profile(user_id)
     rows = get_exercises_with_equipment()
 
-    shoulder_flexion = st.session_state.get("shoulder_flexion", None)
+    shoulder_flexion = st.session_state.get("Right_Shoulder_Flexion_rom", None)
 
     exercise_dict = {}
 
@@ -321,19 +420,19 @@ def get_recommended_exercises(user_id):
             score += 1
 
         if shoulder_flexion is not None:
-            if shoulder_flexion < 70:
+            if shoulder_flexion < 30:
                 if ex["target_area"] == "Upper Body":
                     score -= 4
                 if ex["difficulty"] == "Advanced":
                     score -= 3
 
-            elif 70 <= shoulder_flexion < 120:
+            elif 30 <= shoulder_flexion < 70:
                 if ex["target_area"] == "Upper Body":
                     score -= 1
                 if ex["difficulty"] == "Advanced":
                     score -= 2
 
-            elif shoulder_flexion >= 120:
+            elif shoulder_flexion >= 70:
                 if ex["target_area"] == "Upper Body":
                     score += 2
                 if ex["difficulty"] == "Advanced":
