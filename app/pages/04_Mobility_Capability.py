@@ -27,7 +27,7 @@ st.markdown(f"""
     background-color: #1f2421;
     padding: 35px;
     border-radius: 20px;
-    margin-bottom: 40px;
+    margin-bottom: 35px;
 }}
 
 .header-title {{
@@ -37,28 +37,23 @@ st.markdown(f"""
 
 .header-sub {{
     font-size: 18px;
-    opacity: 0.7;
+    opacity: 0.75;
 }}
 
-.goal-card {{
+.option-card {{
     background-color: #1f2421;
     border-radius: 18px;
     padding: 25px;
     text-align: center;
-    cursor: pointer;
-    transition: 0.2s;
-    min-height: 210px;
+    min-height: 225px;
+    margin-bottom: 12px;
 }}
 
-.goal-card:hover {{
-    transform: scale(1.03);
-}}
-
-.goal-card.selected {{
+.option-card.selected {{
     border: 3px solid #9fb9d4;
 }}
 
-.goal-img {{
+.option-img {{
     width: 95px;
     height: 95px;
     object-fit: contain;
@@ -66,18 +61,19 @@ st.markdown(f"""
     filter: {icon_filter};
 }}
 
-.goal-title {{
+.option-title {{
     font-size: 20px;
-    font-weight: 800;
+    font-weight: 900;
 }}
 
-.goal-desc {{
+.option-desc {{
     font-size: 13px;
-    opacity: 0.7;
+    opacity: 0.75;
 }}
 
 div.stButton > button {{
     margin-bottom: 25px;
+    font-weight: 900 !important;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -87,7 +83,7 @@ st.markdown("""
 <div class="header-card">
     <div class="header-title">MOVEMENT CAPABILITY</div>
     <div class="header-sub">
-        Select your movement capability. You may also run a camera mobility test.
+        Select your movement capability. If you are unsure, choose Camera Mobility Test so the system can use your actual range of motion instead of a broad limitation category.
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -101,22 +97,27 @@ OPTIONS = [
     (
         "Upper-body limitation",
         "upper_body_limitation.png",
-        "Limited shoulder, arm, or upper-body movement."
+        "Choose this only if upper-body movement is generally limited."
     ),
     (
         "Upper + lower limitation",
         "upper_lower_limitation.png",
-        "Limitations affecting both upper and lower body movement."
+        "Choose this if both upper and lower body movement are broadly limited."
     ),
     (
         "Lower-body limitation",
         "lower_body_limitation.png",
-        "Limited hip, knee, ankle, or leg movement."
+        "Choose this only if lower-body movement is generally limited."
     ),
     (
         "Balance / stability limitation",
         "balance_stability_limitation.png",
-        "Difficulty with balance, standing, or stability."
+        "Choose this if balance, standing, or stability is the main concern."
+    ),
+    (
+        "Camera Mobility Test",
+        "camera_mobility_test.png",
+        "Best option for personalised guidance. The system measures your actual ROM instead of assuming a broad limitation."
     ),
 ]
 
@@ -129,35 +130,24 @@ for i, (label, img, desc) in enumerate(OPTIONS):
         selected = "selected" if st.session_state["selected_mobility"] == label else ""
 
         st.markdown(f"""
-        <div class="goal-card {selected}">
-            <img class="goal-img" src="data:image/png;base64,{img_base64}">
-            <div class="goal-title">{label}</div>
-            <div class="goal-desc">{desc}</div>
+        <div class="option-card {selected}">
+            <img class="option-img" src="data:image/png;base64,{img_base64}">
+            <div class="option-title">{label}</div>
+            <div class="option-desc">{desc}</div>
         </div>
         """, unsafe_allow_html=True)
 
         if st.button("Select", key=f"mobility_{label}", use_container_width=True):
             st.session_state["selected_mobility"] = label
-            st.rerun()
+            st.session_state["limitation_category"] = label
+
+            if label == "Camera Mobility Test":
+                st.switch_page("pages/14_Mobility_Test.py")
+            else:
+                st.rerun()
 
 
 st.divider()
-
-camera_img = get_base64(ICON_DIR / "camera_mobility_test.png")
-
-st.markdown(f"""
-<div class="goal-card">
-    <img class="goal-img" src="data:image/png;base64,{camera_img}">
-    <div class="goal-title">Camera Mobility Test</div>
-    <div class="goal-desc">
-        Run a camera-based mobility assessment to measure your current movement range.
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-if st.button("Start Camera Mobility Test", use_container_width=True):
-    st.switch_page("pages/14_Mobility_Test.py")
-
 
 if st.button("Next: Equipment", use_container_width=True):
     if not st.session_state["selected_mobility"]:
