@@ -3,21 +3,23 @@ from pathlib import Path
 import base64
 from ui import apply_style
 
+st.set_page_config(page_title="Set Up Profile", layout="wide")
 apply_style()
 
-st.set_page_config(page_title="Set Up Profile", layout="wide")
 
 def get_base64(path):
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except Exception:
+        return ""
+
 
 BASE_DIR = Path(__file__).parent.parent
 bg = get_base64(BASE_DIR / "static" / "profiletransition.png")
 
 st.markdown(f"""
 <style>
-#MainMenu, header, footer {{visibility: hidden;}}
-
 .stApp {{
     background-image: url("data:image/png;base64,{bg}");
     background-size: cover;
@@ -35,7 +37,7 @@ st.markdown(f"""
     top: 11%;
     right: 10%;
     width: 360px;
-    color: white;
+    color: white !important;
     font-size: 56px;
     font-weight: 900;
     line-height: 0.95;
@@ -43,25 +45,43 @@ st.markdown(f"""
     letter-spacing: 1px;
 }}
 
-.mockup-button {{
+.button-box {{
     position: fixed;
     right: 12%;
     bottom: 17%;
-    background-color: #9fb9d4;
+    width: 260px;
+}}
+
+.button-box div.stButton > button {{
+    background-color: #9fb9d4 !important;
     color: black !important;
-    padding: 18px 46px;
-    border-radius: 4px;
-    text-decoration: none !important;
-    font-weight: 900;
-    font-size: 18px;
+    border: none !important;
+    height: 58px !important;
+    font-weight: 900 !important;
+    font-size: 18px !important;
+}}
+
+.button-box div.stButton > button * {{
+    color: black !important;
 }}
 </style>
+""", unsafe_allow_html=True)
 
+st.markdown("""
 <div class="title-text">
     TIME TO<br>
     SET UP YOUR<br>
     PROFILE!
 </div>
-
-<a class="mockup-button" href="/Mobility_Capability" target="_self">LET’S GO!</a>
 """, unsafe_allow_html=True)
+
+st.markdown('<div class="button-box">', unsafe_allow_html=True)
+
+if st.button("LET'S GO!", use_container_width=True):
+    if not st.session_state.get("user_id"):
+        st.error("Please sign in first.")
+        st.switch_page("pages/02_Sign_In.py")
+    else:
+        st.switch_page("pages/04_Mobility_Capability.py")
+
+st.markdown('</div>', unsafe_allow_html=True)
