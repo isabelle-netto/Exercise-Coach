@@ -266,7 +266,12 @@ def save_mobility_result(user_id, test_key, starting_angle, safe_limit_angle, ro
 
     cur.execute("""
         INSERT INTO MobilityResult (
-            UserID, TestKey, StartingAngle, SafeLimitAngle, ROM, Direction
+            UserID,
+            TestKey,
+            StartingAngle,
+            SafeLimitAngle,
+            ROM,
+            Direction
         )
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(UserID, TestKey)
@@ -331,11 +336,11 @@ def get_user_mobility_results(user_id):
 
 
 def load_mobility_results_to_session(user_id):
+    import streamlit as st
+
     results = get_user_mobility_results(user_id)
 
     for key, result in results.items():
-        import streamlit as st
-
         st.session_state[f"{key}_starting_angle"] = result["starting_angle"]
         st.session_state[f"{key}_safe_limit_angle"] = result["safe_limit_angle"]
         st.session_state[f"{key}_rom"] = result["rom"]
@@ -350,11 +355,13 @@ def get_recommended_exercises(user_id):
     if not user_id:
         return []
 
+    load_mobility_results_to_session(user_id)
+
     user_equipment = get_user_equipment(user_id)
     limitation = get_user_profile(user_id)
     rows = get_exercises_with_equipment()
 
-    shoulder_flexion = st.session_state.get("Right_Shoulder_Flexion_rom", None)
+    shoulder_flexion_rom = st.session_state.get("Right_Shoulder_Flexion_rom", None)
 
     exercise_dict = {}
 
@@ -419,20 +426,20 @@ def get_recommended_exercises(user_id):
         elif limitation == "No major limitation":
             score += 1
 
-        if shoulder_flexion is not None:
-            if shoulder_flexion < 30:
+        if shoulder_flexion_rom is not None:
+            if shoulder_flexion_rom < 30:
                 if ex["target_area"] == "Upper Body":
                     score -= 4
                 if ex["difficulty"] == "Advanced":
                     score -= 3
 
-            elif 30 <= shoulder_flexion < 70:
+            elif 30 <= shoulder_flexion_rom < 70:
                 if ex["target_area"] == "Upper Body":
                     score -= 1
                 if ex["difficulty"] == "Advanced":
                     score -= 2
 
-            elif shoulder_flexion >= 70:
+            elif shoulder_flexion_rom >= 70:
                 if ex["target_area"] == "Upper Body":
                     score += 2
                 if ex["difficulty"] == "Advanced":
