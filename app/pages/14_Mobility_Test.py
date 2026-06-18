@@ -11,12 +11,21 @@ import streamlit.components.v1 as components
 
 from ui import apply_style, bottom_nav
 from accessibility import accessibility_settings_panel, screen_reader_status
+from db import save_mobility_result
 
 st.set_page_config(page_title="Mobility Test", layout="wide")
 apply_style()
 
 st.title("Adaptive Mobility Test")
 accessibility_settings_panel()
+
+user_id = st.session_state.get("user_id")
+
+if not user_id:
+    st.error("Please sign in first before taking the mobility test.")
+    if st.button("Back to Sign In"):
+        st.switch_page("pages/02_Sign_In.py")
+    st.stop()
 
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
@@ -185,6 +194,17 @@ button {
 """,
     unsafe_allow_html=True,
 )
+
+st.markdown("""
+<div class="mobility-card">
+    <h3>How to Save Your Mobility Test</h3>
+    <p><b>Step 1:</b> Choose a test and press <b>Start Measurement</b>.</p>
+    <p><b>Step 2:</b> When the test is completed, press <b>Save Latest Test Result</b>.</p>
+    <p><b>Step 3:</b> Repeat for any other mobility tests you want to complete.</p>
+    <p><b>Step 4:</b> When finished, press <b>Save Final Mobility Results & Return to Profile Setup</b>.</p>
+    <p class="small-note">These results are saved to your account and used later to guide safer exercise recommendations.</p>
+</div>
+""", unsafe_allow_html=True)
 
 top1, top2, top3 = st.columns(3)
 
@@ -370,22 +390,14 @@ class MobilityProcessor:
                         movement = detected_angle - self.starting_angle
 
                         if movement > 8:
-                            if self.safe_limit_angle is None:
-                                self.safe_limit_angle = detected_angle
-                            else:
-                                self.safe_limit_angle = max(self.safe_limit_angle, detected_angle)
-
+                            self.safe_limit_angle = max(self.safe_limit_angle, detected_angle)
                             self.rom = max(0, self.safe_limit_angle - self.starting_angle)
 
                     elif direction == "decrease":
                         movement = self.starting_angle - detected_angle
 
                         if movement > 8:
-                            if self.safe_limit_angle is None:
-                                self.safe_limit_angle = detected_angle
-                            else:
-                                self.safe_limit_angle = min(self.safe_limit_angle, detected_angle)
-
+                            self.safe_limit_angle = min(self.safe_limit_angle, detected_angle)
                             self.rom = max(0, self.starting_angle - self.safe_limit_angle)
 
                 self.status = f"Recording. Move now. Time left: {remaining} seconds."
@@ -430,7 +442,6 @@ class MobilityProcessor:
             pose_colour = (0, 0, 255)
 
         cv2.rectangle(image, (10, 10), (970, 265), (0, 0, 0), -1)
-
         cv2.putText(image, status_text[:60], (30, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
 
         if len(status_text) > 60:
@@ -487,10 +498,8 @@ with right:
         <p><b>Instruction:</b> {test["instruction"]}</p>
         <p><b>Step 1:</b> Stay still during the 6-second baseline reading.</p>
         <p><b>Step 2:</b> Move only when the screen says “Recording. Move now.”</p>
-        <p><b>Saved output:</b> Starting angle, safe limit angle, and ROM.</p>
-        <p class="small-note">
-            This data is used as the user's safe range of motion limit for future exercise guidance.
-        </p>
+        <p><b>Step 3:</b> When the test is completed, press <b>Save Latest Test Result</b>.</p>
+        <p><b>Final Step:</b> After all tests are done, press <b>Save Final Mobility Results & Return to Profile Setup</b>.</p>
     </div>
     """,
         unsafe_allow_html=True,
@@ -501,7 +510,8 @@ with right:
             f"{selected_side} {test_name}. {test['instruction']} "
             "Stay still during the six second baseline reading. "
             "Move only when the screen says recording. Move now. "
-            "The system will save your safe range of motion."
+            "After the test finishes, press save latest test result. "
+            "When all tests are done, press save final mobility results and return to profile setup."
         )
 
     start_pressed = st.button("Start Measurement", use_container_width=True)
@@ -565,13 +575,21 @@ with right:
 
         if phase == "done" and done_result:
             st.success(
-                f"Latest result: ROM **{done_result['rom']}°**, safe limit **{done_result['safe_limit_angle']}°**"
+                f"Latest result ready. Press Save Latest Test Result. ROM **{done_result['rom']}°**, safe limit **{done_result['safe_limit_angle']}°**"
             )
 
     else:
         st.warning("Start the camera first before pressing Start Measurement.")
 
 st.divider()
+
+st.markdown("""
+<div class="mobility-card">
+    <h3>Save Your Results</h3>
+    <p><b>Important:</b> After each completed test, press <b>Save Latest Test Result</b>.</p>
+    <p>When you are finished with all tests, press <b>Save Final Mobility Results & Return to Profile Setup</b>.</p>
+</div>
+""", unsafe_allow_html=True)
 
 if st.button("Save Latest Test Result", use_container_width=True):
     if ctx.video_processor:
@@ -596,10 +614,10 @@ if st.button("Save Latest Test Result", use_container_width=True):
             }
 
             st.success(
-                f"Saved {result_key}: ROM {done_result['rom']}°, safe limit {done_result['safe_limit_angle']}°."
+                f"Saved current test: {result_key} | ROM {done_result['rom']}° | Safe limit {done_result['safe_limit_angle']}°."
             )
 
-            speak(f"Saved result. Range of motion {done_result['rom']} degrees.")
+            speak(f"Current test saved. Range of motion {done_result['rom']} degrees.")
     else:
         st.warning("Start the camera first.")
 
@@ -615,13 +633,28 @@ else:
             f"Safe Limit {result['safe_limit_angle']}°"
         )
 
-if st.button("Save All Mobility Results", use_container_width=True):
-    for key, result in st.session_state["mobility_results"].items():
-        st.session_state[f"{key}_starting_angle"] = result["starting_angle"]
-        st.session_state[f"{key}_safe_limit_angle"] = result["safe_limit_angle"]
-        st.session_state[f"{key}_rom"] = result["rom"]
-        st.session_state[f"{key}_direction"] = result["direction"]
+if st.button("Save Final Mobility Results & Return to Profile Setup", use_container_width=True):
+    if not st.session_state["mobility_results"]:
+        st.warning("Please complete and save at least one mobility test first.")
 
-    st.success("Mobility ROM data saved for exercise guidance.")
+    else:
+        for key, result in st.session_state["mobility_results"].items():
+            st.session_state[f"{key}_starting_angle"] = result["starting_angle"]
+            st.session_state[f"{key}_safe_limit_angle"] = result["safe_limit_angle"]
+            st.session_state[f"{key}_rom"] = result["rom"]
+            st.session_state[f"{key}_direction"] = result["direction"]
+
+            save_mobility_result(
+                user_id=user_id,
+                test_key=key,
+                starting_angle=result["starting_angle"],
+                safe_limit_angle=result["safe_limit_angle"],
+                rom=result["rom"],
+                direction=result["direction"],
+            )
+
+        st.success("Final mobility results saved to your account.")
+        speak("Final mobility results saved. Returning to profile setup.")
+        st.switch_page("pages/04_Mobility_Capability.py")
 
 bottom_nav()
