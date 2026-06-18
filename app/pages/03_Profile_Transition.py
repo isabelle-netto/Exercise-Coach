@@ -11,77 +11,92 @@ def get_base64(path):
     try:
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
-    except Exception:
+    except:
         return ""
 
 
 BASE_DIR = Path(__file__).parent.parent
 bg = get_base64(BASE_DIR / "static" / "profiletransition.png")
 
-st.markdown(f"""
-<style>
-.stApp {{
-    background-image: url("data:image/png;base64,{bg}");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-}}
+st.markdown(
+    f"""
+    <style>
 
-.block-container {{
-    padding: 0 !important;
-    max-width: 100% !important;
-}}
+    .stApp {{
+        background-image: url("data:image/png;base64,{bg}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }}
 
-.title-text {{
-    position: fixed;
-    top: 11%;
-    right: 10%;
-    width: 360px;
-    color: white !important;
-    font-size: 56px;
-    font-weight: 900;
-    line-height: 0.95;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}}
+    .main {{
+        background: rgba(0,0,0,0);
+    }}
 
-.button-box {{
-    position: fixed;
-    right: 12%;
-    bottom: 17%;
-    width: 260px;
-}}
+    .profile-card {{
+        background: rgba(0,0,0,0.55);
+        padding: 40px;
+        border-radius: 20px;
+        margin-top: 80px;
+    }}
 
-.button-box div.stButton > button {{
-    background-color: #9fb9d4 !important;
-    color: black !important;
-    border: none !important;
-    height: 58px !important;
-    font-weight: 900 !important;
-    font-size: 18px !important;
-}}
+    .profile-title {{
+        color: white;
+        font-size: 60px;
+        font-weight: 900;
+        line-height: 1.0;
+        margin-bottom: 20px;
+    }}
 
-.button-box div.stButton > button * {{
-    color: black !important;
-}}
-</style>
-""", unsafe_allow_html=True)
+    .profile-text {{
+        color: white;
+        font-size: 18px;
+        line-height: 1.6;
+        margin-bottom: 25px;
+    }}
 
-st.markdown("""
-<div class="title-text">
-    TIME TO<br>
-    SET UP YOUR<br>
-    PROFILE!
-</div>
-""", unsafe_allow_html=True)
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-st.markdown('<div class="button-box">', unsafe_allow_html=True)
+left, right = st.columns([1, 1])
 
-if st.button("LET'S GO!", use_container_width=True):
-    if not st.session_state.get("user_id"):
-        st.error("Please sign in first.")
-        st.switch_page("pages/02_Sign_In.py")
-    else:
-        st.switch_page("pages/04_Mobility_Capability.py")
+with right:
 
-st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="profile-card">
+
+        <div class="profile-title">
+        LET'S BUILD<br>
+        YOUR PROFILE
+        </div>
+
+        <div class="profile-text">
+        Before we recommend exercises, let's learn a little about you.
+
+        We'll personalise your exercise programme based on:
+
+        • Movement capability<br>
+        • Available equipment<br>
+        • Fitness goals
+        </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.progress(25)
+
+    st.write("Profile Setup Progress: 25%")
+
+    if st.button("START PROFILE SETUP", use_container_width=True):
+
+        if not st.session_state.get("user_id"):
+            st.error("Please sign in first.")
+            st.switch_page("pages/02_Sign_In.py")
+
+        else:
+            st.switch_page("pages/04_Mobility_Capability.py")
