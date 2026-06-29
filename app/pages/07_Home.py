@@ -90,35 +90,99 @@ else:
     st.write("Your diary questions are personalised based on your selected goals.")
 
     QUESTION_BANK = {
-        "Improve mobility": [
-            "Do your joints feel easier to move today?",
-            "Did you notice improvement in your range of motion?",
-            "Were you able to move with less stiffness?"
-        ],
-        "Build strength": [
-            "Did exercises feel easier than before?",
-            "Did you feel stronger during movements?",
-            "Were you able to complete more repetitions?"
-        ],
-        "Improve posture/form": [
-            "Did you feel more aware of your posture?",
-            "Were you able to maintain proper form?"
-        ],
-        "Increase endurance": [
-            "Did you feel less tired during exercise?",
-            "Were you able to exercise longer?"
-        ],
-        "General fitness": [
-            "How was your overall energy after exercising?",
-            "Do you feel more confident being active?"
-        ]
+        "Improve mobility": {
+            "Do your joints feel easier to move today?": [
+                "Much worse",
+                "Slightly worse",
+                "About the same",
+                "Slightly better",
+                "Much better"
+            ],
+            "Did you notice improvement in your range of motion?": [
+                "No improvement",
+                "Slight improvement",
+                "Moderate improvement",
+                "Significant improvement"
+            ],
+            "Were you able to move with less stiffness?": [
+                "Much more stiff",
+                "Slightly more stiff",
+                "No change",
+                "Less stiff",
+                "Much less stiff"
+            ],
+        },
+        "Build strength": {
+            "Did exercises feel easier than before?": [
+                "Much harder",
+                "Slightly harder",
+                "About the same",
+                "Slightly easier",
+                "Much easier"
+            ],
+            "Did you feel stronger during movements?": [
+                "Not at all",
+                "A little",
+                "Moderately",
+                "Very much"
+            ],
+            "Were you able to complete more repetitions?": [
+                "Fewer reps",
+                "Same reps",
+                "A few more reps",
+                "Many more reps"
+            ],
+        },
+        "Improve posture/form": {
+            "Did you feel more aware of your posture?": [
+                "Not at all",
+                "Slightly",
+                "Mostly",
+                "Completely"
+            ],
+            "Were you able to maintain proper form?": [
+                "Rarely",
+                "Sometimes",
+                "Most of the time",
+                "Throughout the exercise"
+            ],
+        },
+        "Increase endurance": {
+            "Did you feel less tired during exercise?": [
+                "More tired",
+                "About the same",
+                "Slightly less tired",
+                "Much less tired"
+            ],
+            "Were you able to exercise longer?": [
+                "Shorter than usual",
+                "Same duration",
+                "Slightly longer",
+                "Much longer"
+            ],
+        },
+        "General fitness": {
+            "How was your overall energy after exercising?": [
+                "Very low",
+                "Low",
+                "Moderate",
+                "High",
+                "Excellent"
+            ],
+            "Do you feel more confident being active?": [
+                "Not yet",
+                "A little more confident",
+                "Moderately confident",
+                "Very confident"
+            ],
+        }
     }
 
-    selected_questions = []
+    selected_questions = {}
 
     for goal in goals:
         if goal in QUESTION_BANK:
-            selected_questions.extend(QUESTION_BANK[goal])
+            selected_questions.update(QUESTION_BANK[goal])
 
     if not selected_questions:
         st.info("No goals found. Please update your profile.")
@@ -127,13 +191,14 @@ else:
         with st.expander("Add Diary Entry"):
             answers = []
 
-            for q in selected_questions:
-                ans = st.selectbox(
-                    q,
-                    ["Not yet", "Slightly", "Moderately", "A lot"],
-                    key=q
+            for question, options in selected_questions.items():
+                ans = st.radio(
+                    question,
+                    options,
+                    horizontal=True,
+                    key=f"diary_{question}"
                 )
-                answers.append(f"{q} → {ans}")
+                answers.append(f"{question} → {ans}")
 
             note = st.text_area("Personal reflection")
 
