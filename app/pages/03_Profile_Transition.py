@@ -18,168 +18,147 @@ def get_base64(path):
 BASE_DIR = Path(__file__).parent.parent
 bg = get_base64(BASE_DIR / "static" / "profiletransition.png")
 
-st.markdown(
-    f"""
-    <style>
-    .stApp {{
-        background-image:
-            linear-gradient(90deg, rgba(0,0,0,0.15), rgba(0,0,0,0.75)),
-            url("data:image/png;base64,{bg}");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
+st.markdown(f"""
+<style>
+.stApp {{
+    background-image:
+        linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.65)),
+        url("data:image/png;base64,{bg}");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}}
+
+.block-container {{
+    padding: 0 !important;
+    max-width: 100% !important;
+}}
+
+.title-text {{
+    position: fixed;
+    top: 18%;
+    right: 8%;
+    width: 520px;
+    color: white !important;
+    font-size: 68px;
+    font-weight: 900;
+    line-height: 0.95;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: left;
+}}
+
+.subtitle-text {{
+    position: fixed;
+    top: 49%;
+    right: 8%;
+    width: 520px;
+    color: white !important;
+    font-size: 20px;
+    line-height: 1.55;
+    font-weight: 500;
+    text-align: left;
+}}
+
+.profile-points {{
+    position: fixed;
+    top: 62%;
+    right: 8%;
+    width: 520px;
+    color: white !important;
+    font-size: 18px;
+    line-height: 1.8;
+    font-weight: 700;
+    text-align: left;
+}}
+
+.button-box {{
+    position: fixed;
+    right: 8%;
+    bottom: 15%;
+    width: 360px;
+}}
+
+.button-box div.stButton > button {{
+    background-color: #9fb9d4 !important;
+    color: black !important;
+    border: none !important;
+    height: 62px !important;
+    font-weight: 900 !important;
+    font-size: 18px !important;
+    border-radius: 14px !important;
+    letter-spacing: 1px;
+}}
+
+.button-box div.stButton > button * {{
+    color: black !important;
+}}
+
+.button-box div.stButton > button:hover {{
+    opacity: 0.95;
+    transform: scale(1.02);
+}}
+
+@media (max-width: 900px) {{
+    .title-text {{
+        top: 12%;
+        left: 8%;
+        right: auto;
+        width: 84%;
+        font-size: 46px;
     }}
 
-    .block-container {{
-        padding: 0 !important;
-        max-width: 100% !important;
+    .subtitle-text {{
+        top: 39%;
+        left: 8%;
+        right: auto;
+        width: 84%;
+        font-size: 17px;
     }}
 
-    .profile-wrapper {{
-        height: 100vh;
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        padding-right: 7%;
-        box-sizing: border-box;
-    }}
-
-    .profile-panel {{
-        width: 560px;
-        background: rgba(0,0,0,0.72);
-        border-radius: 28px;
-        padding: 50px;
-        box-shadow: 0 25px 60px rgba(0,0,0,0.35);
-    }}
-
-    .profile-kicker {{
-        color: #9fb9d4;
-        font-size: 15px;
-        font-weight: 900;
-        letter-spacing: 2px;
-        margin-bottom: 16px;
-        text-transform: uppercase;
-    }}
-
-    .profile-title {{
-        color: white;
-        font-size: 62px;
-        font-weight: 900;
-        line-height: 0.95;
-        margin-bottom: 24px;
-        text-transform: uppercase;
-    }}
-
-    .profile-text {{
-        color: white;
-        font-size: 18px;
-        line-height: 1.6;
-        opacity: 0.92;
-        margin-bottom: 28px;
-    }}
-
-    .step-list {{
-        color: white;
+    .profile-points {{
+        top: 56%;
+        left: 8%;
+        right: auto;
+        width: 84%;
         font-size: 16px;
-        line-height: 1.9;
-        margin-bottom: 32px;
     }}
 
-    .progress-label {{
-        color: white;
-        font-weight: 800;
-        margin-bottom: 8px;
+    .button-box {{
+        left: 8%;
+        right: auto;
+        bottom: 12%;
+        width: 84%;
     }}
+}}
+</style>
+""", unsafe_allow_html=True)
 
-    div.stProgress > div > div > div {{
-        background-color: #9fb9d4 !important;
-    }}
+st.markdown("""
+<div class="title-text">
+LET'S BUILD<br>
+YOUR PROFILE
+</div>
+""", unsafe_allow_html=True)
 
-    .button-area {{
-        margin-top: -170px;
-        width: 460px;
-        margin-left: auto;
-        margin-right: 7%;
-    }}
+st.markdown("""
+<div class="subtitle-text">
+Before we recommend exercises, let's learn a little about you.
+Your profile helps Exercise Coach personalise safer movement,
+suitable equipment, and realistic fitness goals.
+</div>
+""", unsafe_allow_html=True)
 
-    div.stButton > button {{
-        background-color: #9fb9d4 !important;
-        color: black !important;
-        border: none !important;
-        height: 64px !important;
-        font-size: 18px !important;
-        font-weight: 900 !important;
-        border-radius: 14px !important;
-        letter-spacing: 1px;
-    }}
+st.markdown("""
+<div class="profile-points">
+✓ Movement capability<br>
+✓ Available equipment<br>
+✓ Fitness goals<br>
+✓ Personalised exercise guidance
+</div>
+""", unsafe_allow_html=True)
 
-    div.stButton > button * {{
-        color: black !important;
-    }}
-
-    div.stButton > button:hover {{
-        transform: scale(1.01);
-        opacity: 0.95;
-    }}
-
-    @media (max-width: 900px) {{
-        .profile-wrapper {{
-            justify-content: center;
-            padding: 24px;
-        }}
-
-        .profile-panel {{
-            width: 100%;
-            padding: 34px;
-        }}
-
-        .profile-title {{
-            font-size: 46px;
-        }}
-
-        .button-area {{
-            width: calc(100% - 48px);
-            margin: -150px auto 0 auto;
-        }}
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    """
-    <div class="profile-wrapper">
-        <div class="profile-panel">
-            <div class="profile-kicker">Step 1 of 4</div>
-
-            <div class="profile-title">
-                Let’s Build<br>
-                Your Profile
-            </div>
-
-            <div class="profile-text">
-                Before we recommend exercises, let’s learn a little about you.
-                Your profile helps Exercise Coach personalise safer movement,
-                suitable equipment, and realistic fitness goals.
-            </div>
-
-            <div class="step-list">
-                ✓ Movement capability<br>
-                ✓ Available equipment<br>
-                ✓ Fitness goals<br>
-                ✓ Personalised exercise guidance
-            </div>
-
-            <div class="progress-label">Profile Setup Progress: 25%</div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.markdown('<div class="button-area">', unsafe_allow_html=True)
-st.progress(25)
+st.markdown('<div class="button-box">', unsafe_allow_html=True)
 
 if st.button("START PROFILE SETUP", use_container_width=True):
     if not st.session_state.get("user_id"):
@@ -188,4 +167,4 @@ if st.button("START PROFILE SETUP", use_container_width=True):
     else:
         st.switch_page("pages/04_Mobility_Capability.py")
 
-st.markdown("</div>", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
