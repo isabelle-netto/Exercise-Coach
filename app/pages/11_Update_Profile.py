@@ -136,4 +136,11 @@ if st.button(
 ):
     st.switch_page("pages/14_Mobility_Test.py")
 
+st.divider()
+
+if st.button("Sign Out", use_container_width=True):
+    st.session_state.clear()
+    st.success("Signed out successfully.")
+    st.switch_page("pages/01_Welcome.py")
+
 bottom_nav()
