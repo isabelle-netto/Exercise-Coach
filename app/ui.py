@@ -57,6 +57,8 @@ def apply_style():
 
 
 def bottom_nav():
+    import streamlit as st
+
     st.markdown("<div class='nav-gap'></div>", unsafe_allow_html=True)
     st.divider()
 
@@ -72,8 +74,8 @@ def bottom_nav():
 
     with col3:
         if st.button("Stats", use_container_width=True, key="nav_stats"):
-            st.switch_page("pages/11_Stats.py")
+            st.switch_page("pages/09_Stats.py")
 
     with col4:
         if st.button("Profile", use_container_width=True, key="nav_profile"):
-            st.switch_page("pages/04_Mobility_Capability.py")
+            st.switch_page("pages/11_Update_Profile.py")
