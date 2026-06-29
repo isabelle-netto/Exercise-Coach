@@ -22,14 +22,10 @@ def apply_style():
 
     .block-container {
         padding-top: 0 !important;
-        padding-bottom: 0 !important;
+        padding-bottom: 90px !important;
         padding-left: 0 !important;
         padding-right: 0 !important;
         max-width: 100% !important;
-    }
-
-    [data-testid="stVerticalBlock"] {
-        gap: 0rem !important;
     }
 
     .card {
@@ -39,7 +35,7 @@ def apply_style():
     }
 
     div.stButton > button {
-        border-radius: 6px;
+        border-radius: 10px;
         border: none;
         padding: 0.7rem 1.4rem;
         font-weight: 800;
@@ -47,29 +43,39 @@ def apply_style():
         letter-spacing: 0.5px;
     }
 
-    .bottom-nav {
+    .nav-spacer {
+        height: 110px;
+    }
+
+    .nav-card {
         position: fixed;
-        bottom: 20px;
+        bottom: 18px;
         left: 50%;
         transform: translateX(-50%);
-        padding: 14px 36px;
+        background: rgba(159, 185, 212, 0.95);
+        padding: 10px 18px;
         border-radius: 40px;
         z-index: 999999;
-        display: flex;
-        gap: 36px;
-        align-items: center;
-        justify-content: center;
         box-shadow: 0px 6px 20px rgba(0,0,0,0.45);
+        width: min(720px, 92vw);
     }
 
-    .bottom-nav a {
-        text-decoration: none;
-        font-weight: 800;
-        font-size: 15px;
+    .nav-card div.stButton > button {
+        background: transparent !important;
+        color: black !important;
+        border: none !important;
+        box-shadow: none !important;
+        height: 42px !important;
+        font-size: 14px !important;
+        border-radius: 24px !important;
     }
 
-    .bottom-nav a:hover {
-        text-decoration: underline;
+    .nav-card div.stButton > button:hover {
+        background: rgba(255,255,255,0.35) !important;
+    }
+
+    .nav-card div.stButton > button * {
+        color: black !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -78,11 +84,26 @@ def apply_style():
 
 
 def bottom_nav():
-    st.markdown("""
-    <nav class="bottom-nav" aria-label="Main navigation">
-        <a href="/Home" target="_self" aria-label="Go to Home page">Home</a>
-        <a href="/Exercises" target="_self" aria-label="Go to Exercises page">Exercises</a>
-        <a href="/Stats" target="_self" aria-label="Go to Stats page">Stats</a>
-        <a href="/Profile" target="_self" aria-label="Go to Profile page">Profile</a>
-    </nav>
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='nav-spacer'></div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='nav-card'>", unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if st.button("Home", use_container_width=True, key="nav_home"):
+            st.switch_page("pages/07_Home.py")
+
+    with col2:
+        if st.button("Exercises", use_container_width=True, key="nav_exercises"):
+            st.switch_page("pages/08_Exercises.py")
+
+    with col3:
+        if st.button("Stats", use_container_width=True, key="nav_stats"):
+            st.switch_page("pages/11_Stats.py")
+
+    with col4:
+        if st.button("Profile", use_container_width=True, key="nav_profile"):
+            st.switch_page("pages/04_Mobility_Capability.py")
+
+    st.markdown("</div>", unsafe_allow_html=True)
