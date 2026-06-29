@@ -22,7 +22,7 @@ st.markdown(f"""
 <style>
 .stApp {{
     background-image:
-        linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.65)),
+        linear-gradient(90deg, rgba(0,0,0,0.60), rgba(0,0,0,0.15)),
         url("data:image/png;base64,{bg}");
     background-size: cover;
     background-position: center;
@@ -36,11 +36,11 @@ st.markdown(f"""
 
 .title-text {{
     position: fixed;
-    top: 18%;
-    right: 8%;
-    width: 520px;
+    top: 17%;
+    left: 8%;
+    width: 560px;
     color: white !important;
-    font-size: 68px;
+    font-size: 72px;
     font-weight: 900;
     line-height: 0.95;
     text-transform: uppercase;
@@ -50,11 +50,11 @@ st.markdown(f"""
 
 .subtitle-text {{
     position: fixed;
-    top: 49%;
-    right: 8%;
-    width: 520px;
+    top: 47%;
+    left: 8%;
+    width: 560px;
     color: white !important;
-    font-size: 20px;
+    font-size: 21px;
     line-height: 1.55;
     font-weight: 500;
     text-align: left;
@@ -62,24 +62,17 @@ st.markdown(f"""
 
 .profile-points {{
     position: fixed;
-    top: 62%;
-    right: 8%;
-    width: 520px;
+    top: 64%;
+    left: 8%;
+    width: 560px;
     color: white !important;
-    font-size: 18px;
+    font-size: 19px;
     line-height: 1.8;
-    font-weight: 700;
+    font-weight: 800;
     text-align: left;
 }}
 
-.button-box {{
-    position: fixed;
-    right: 8%;
-    bottom: 15%;
-    width: 360px;
-}}
-
-.button-box div.stButton > button {{
+div.stButton > button {{
     background-color: #9fb9d4 !important;
     color: black !important;
     border: none !important;
@@ -90,11 +83,11 @@ st.markdown(f"""
     letter-spacing: 1px;
 }}
 
-.button-box div.stButton > button * {{
+div.stButton > button * {{
     color: black !important;
 }}
 
-.button-box div.stButton > button:hover {{
+div.stButton > button:hover {{
     opacity: 0.95;
     transform: scale(1.02);
 }}
@@ -103,7 +96,6 @@ st.markdown(f"""
     .title-text {{
         top: 12%;
         left: 8%;
-        right: auto;
         width: 84%;
         font-size: 46px;
     }}
@@ -111,24 +103,15 @@ st.markdown(f"""
     .subtitle-text {{
         top: 39%;
         left: 8%;
-        right: auto;
         width: 84%;
         font-size: 17px;
     }}
 
     .profile-points {{
-        top: 56%;
+        top: 58%;
         left: 8%;
-        right: auto;
         width: 84%;
         font-size: 16px;
-    }}
-
-    .button-box {{
-        left: 8%;
-        right: auto;
-        bottom: 12%;
-        width: 84%;
     }}
 }}
 </style>
@@ -158,13 +141,14 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="button-box">', unsafe_allow_html=True)
+st.markdown("<div style='height: 690px;'></div>", unsafe_allow_html=True)
 
-if st.button("START PROFILE SETUP", use_container_width=True):
-    if not st.session_state.get("user_id"):
-        st.error("Please sign in first.")
-        st.switch_page("pages/02_Sign_In.py")
-    else:
-        st.switch_page("pages/04_Mobility_Capability.py")
+left, middle, right = st.columns([1.2, 1.8, 2])
 
-st.markdown('</div>', unsafe_allow_html=True)
+with left:
+    if st.button("START PROFILE SETUP", use_container_width=True):
+        if not st.session_state.get("user_id"):
+            st.error("Please sign in first.")
+            st.switch_page("pages/02_Sign_In.py")
+        else:
+            st.switch_page("pages/04_Mobility_Capability.py")
