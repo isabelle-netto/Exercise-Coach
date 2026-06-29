@@ -6,19 +6,10 @@ import av
 from threading import Lock
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 
-from db import save_exercise_session
-try:
-    from db import load_mobility_results_to_session
-except Exception:
-    load_mobility_results_to_session = None
-
+from db import save_exercise_session, load_mobility_results_to_session
 from ui import apply_style, bottom_nav
 from movement_templates import MOVEMENT_TEMPLATES
-from coaching_engine import (
-    get_template_angle,
-    calculate_adaptive_accuracy,
-    get_adaptive_targets
-)
+from coaching_engine import get_template_angle, calculate_adaptive_accuracy
 
 st.set_page_config(page_title="Live Session", layout="wide")
 apply_style()
@@ -26,8 +17,8 @@ apply_style()
 st.markdown("""
 <style>
 [data-testid="stVerticalBlock"] video {
-    max-width: 500px !important;
-    max-height: 370px !important;
+    max-width: 480px !important;
+    max-height: 360px !important;
     border-radius: 18px !important;
     margin: auto !important;
     display: block !important;
@@ -74,8 +65,7 @@ if not user_id:
     bottom_nav()
     st.stop()
 
-if load_mobility_results_to_session:
-    load_mobility_results_to_session(user_id)
+load_mobility_results_to_session(user_id)
 
 if not exercise_id:
     st.warning("Please select an exercise first.")
@@ -89,16 +79,14 @@ template = MOVEMENT_TEMPLATES.get(exercise_name, "general")
 side_label = st.radio("Which side are you training?", ["Right", "Left"], horizontal=True)
 side = "RIGHT" if side_label == "Right" else "LEFT"
 
-targets = get_adaptive_targets(template, st.session_state, side_label)
 
-
-def get_mobility_key_for_template(template_name, exercise_name, side_label):
+def get_mobility_key(template_name, exercise_name, side_label):
     text = f"{template_name} {exercise_name}".lower()
 
     if "shoulder" in text or "press" in text or "raise" in text:
         return f"{side_label}_Shoulder_Flexion"
 
-    if "row" in text or "curl" in text or "bicep" in text or "tricep" in text:
+    if "curl" in text or "bicep" in text or "tricep" in text or "row" in text:
         return f"{side_label}_Elbow_Flexion"
 
     if "squat" in text or "leg" in text or "knee" in text:
@@ -107,36 +95,57 @@ def get_mobility_key_for_template(template_name, exercise_name, side_label):
     if "hip" in text or "glute" in text:
         return f"{side_label}_Hip_Flexion"
 
-    if "ankle" in text or "calf" in text:
+    if "calf" in text or "ankle" in text:
         return f"{side_label}_Ankle_Mobility"
 
     return None
 
 
-mobility_key = get_mobility_key_for_template(template, exercise_name, side_label)
+mobility_key = get_mobility_key(template, exercise_name, side_label)
 
-saved_start = None
-saved_limit = None
 saved_rom = None
+saved_limit = None
 saved_direction = None
 
 if mobility_key:
-    saved_start = st.session_state.get(f"{mobility_key}_starting_angle")
-    saved_limit = st.session_state.get(f"{mobility_key}_safe_limit_angle")
     saved_rom = st.session_state.get(f"{mobility_key}_rom")
+    saved_limit = st.session_state.get(f"{mobility_key}_safe_limit_angle")
     saved_direction = st.session_state.get(f"{mobility_key}_direction")
 
-if saved_rom is not None:
-    saved_rom = int(saved_rom)
+try:
+    saved_rom = int(saved_rom) if saved_rom is not None else None
+except Exception:
+    saved_rom = None
+
+try:
+    saved_limit = int(saved_limit) if saved_limit is not None else None
+except Exception:
+    saved_limit = None
+
+if not saved_direction:
+    saved_direction = "increase"
+
+# IMPORTANT:
+# Rep threshold must be LOW enough for limited-ROM users.
+# If saved ROM is 20°, threshold becomes 6°.
+# If no ROM exists, it still counts using 12°.
+if saved_rom and saved_rom > 0:
+    rep_threshold = max(4, saved_rom * 0.30)
+    return_threshold = max(2, saved_rom * 0.10)
+else:
+    rep_threshold = 12
+    return_threshold = 5
 
 st.markdown(f"""
 <div class="live-card">
-<h3>Adaptive Coaching Targets</h3>
-<p><b>Exercise template:</b> {template}</p>
-<p><b>Mobility result used:</b> {mobility_key if mobility_key else "General movement"}</p>
+<h3>Adaptive ROM Settings Used</h3>
+<p><b>Movement template:</b> {template}</p>
+<p><b>Mobility result used:</b> {mobility_key if mobility_key else "No matching mobility test found"}</p>
 <p><b>Saved ROM:</b> {saved_rom if saved_rom is not None else "Not found"}°</p>
-<p><b>Saved safe limit:</b> {saved_limit if saved_limit is not None else "Not found"}°</p>
-<p>This session counts reps using your tested ROM, not a normal full-body range.</p>
+<p><b>Safe limit:</b> {saved_limit if saved_limit is not None else "Not found"}°</p>
+<p><b>Rep threshold:</b> {round(rep_threshold, 1)}°</p>
+<p><b>Return threshold:</b> {round(return_threshold, 1)}°</p>
+<p>This means the system counts reps based on your tested range, not a normal full range.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -155,12 +164,16 @@ class ExerciseProcessor:
         self.counter = 0
         self.stage = "rest"
         self.session_start_time = time.time()
+
         self.angles = []
         self.baseline_samples = []
         self.baseline_angle = None
         self.last_angle = None
-        self.last_feedback = "Ready"
+        self.last_movement = 0
+
+        self.last_feedback = "Camera ready. Hold still briefly for baseline."
         self.status = "neutral"
+
         self.good_frames = 0
         self.bad_frames = 0
         self.total_frames = 0
@@ -174,8 +187,6 @@ class ExerciseProcessor:
 
         image_rgb.flags.writeable = True
         image = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-
-        angle = None
 
         try:
             if results.pose_landmarks:
@@ -203,62 +214,65 @@ class ExerciseProcessor:
                         if self.baseline_angle is None:
                             self.baseline_samples.append(angle)
 
-                            if len(self.baseline_samples) >= 20:
+                            if len(self.baseline_samples) >= 15:
                                 self.baseline_angle = sum(self.baseline_samples) / len(self.baseline_samples)
-                                self.last_feedback = "Baseline set. Start moving within your comfortable range."
                                 self.status = "neutral"
+                                self.last_feedback = "Baseline set. Start moving."
 
                         else:
-                            if saved_rom is not None and saved_rom > 0:
-                                rep_threshold = max(5, saved_rom * 0.35)
-                                return_threshold = max(3, saved_rom * 0.12)
-                            else:
-                                rep_threshold = 12
-                                return_threshold = 5
-
                             if saved_direction == "decrease":
-                                movement_amount = self.baseline_angle - angle
+                                movement = self.baseline_angle - angle
                             else:
-                                movement_amount = angle - self.baseline_angle
+                                movement = angle - self.baseline_angle
 
-                            movement_amount = max(0, movement_amount)
+                            movement = max(0, movement)
+                            self.last_movement = movement
 
                             unsafe = False
 
-                            if saved_limit is not None and saved_direction:
-                                limit = int(saved_limit)
-                                margin = 8
+                            if saved_limit is not None:
+                                margin = 10
 
-                                if saved_direction == "increase" and angle > limit + margin:
+                                if saved_direction == "increase" and angle > saved_limit + margin:
                                     unsafe = True
 
-                                if saved_direction == "decrease" and angle < limit - margin:
+                                if saved_direction == "decrease" and angle < saved_limit - margin:
                                     unsafe = True
 
                             if unsafe:
                                 self.status = "bad"
                                 self.bad_frames += 1
-                                self.last_feedback = "Stop. You are beyond your tested safe range."
+                                self.last_feedback = "Stop. Beyond tested safe range."
 
                             else:
                                 self.status = "good"
                                 self.good_frames += 1
-                                self.last_feedback = "Good. Stay within your tested range."
 
-                                if self.stage == "rest" and movement_amount >= rep_threshold:
+                                if self.stage == "rest" and movement >= rep_threshold:
                                     self.stage = "active"
+                                    self.last_feedback = "Good. Now return slowly."
 
-                                elif self.stage == "active" and movement_amount <= return_threshold:
+                                elif self.stage == "active" and movement <= return_threshold:
                                     self.stage = "rest"
                                     self.counter += 1
-                                    self.last_feedback = f"Good rep. Total reps: {self.counter}"
+                                    self.last_feedback = f"Rep counted. Total reps: {self.counter}"
+
+                                else:
+                                    self.last_feedback = "Good. Stay controlled."
+
+                else:
+                    with self.lock:
+                        self.status = "bad"
+                        self.bad_frames += 1
+                        self.total_frames += 1
+                        self.last_feedback = "Angle not detected. Adjust position."
 
             else:
                 with self.lock:
                     self.status = "bad"
                     self.bad_frames += 1
                     self.total_frames += 1
-                    self.last_feedback = "No pose detected. Adjust your camera."
+                    self.last_feedback = "No pose detected. Adjust camera."
 
         except Exception:
             with self.lock:
@@ -273,22 +287,23 @@ class ExerciseProcessor:
             display_angle = self.last_angle
             display_status = self.status
             baseline = self.baseline_angle
+            movement = self.last_movement
 
         if display_status == "good":
             border_colour = (0, 180, 0)
             text_colour = (0, 255, 0)
-            status_text = "GREEN: GOOD FORM"
+            status_text = "GREEN: GOOD"
         elif display_status == "bad":
             border_colour = (0, 0, 220)
             text_colour = (0, 0, 255)
-            status_text = "RED: CHECK RANGE"
+            status_text = "RED: CHECK"
         else:
             border_colour = (90, 90, 90)
             text_colour = (255, 255, 255)
             status_text = "READY"
 
-        cv2.rectangle(image, (10, 10), (650, 150), (0, 0, 0), -1)
-        cv2.rectangle(image, (10, 10), (650, 150), border_colour, 3)
+        cv2.rectangle(image, (10, 10), (650, 155), (0, 0, 0), -1)
+        cv2.rectangle(image, (10, 10), (650, 155), border_colour, 3)
 
         cv2.putText(image, status_text, (25, 38),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.58, text_colour, 2)
@@ -297,15 +312,15 @@ class ExerciseProcessor:
                     (25, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 2)
 
         if display_angle is not None:
-            cv2.putText(image, f"Angle: {int(display_angle)} deg",
+            cv2.putText(image, f"Angle: {int(display_angle)} deg | Move: {int(movement)} deg",
                         (25, 96), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 2)
 
         if baseline is not None:
-            cv2.putText(image, f"Baseline: {int(baseline)} deg | ROM target: {saved_rom if saved_rom else 'general'}",
+            cv2.putText(image, f"Base: {int(baseline)} | Rep target: {round(rep_threshold,1)} deg",
                         (25, 122), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
 
         cv2.putText(image, str(feedback)[:55],
-                    (25, 144), cv2.FONT_HERSHEY_SIMPLEX, 0.42, text_colour, 1)
+                    (25, 146), cv2.FONT_HERSHEY_SIMPLEX, 0.42, text_colour, 1)
 
         return av.VideoFrame.from_ndarray(image, format="bgr24")
 
@@ -350,6 +365,8 @@ with right:
             total_frames = ctx.video_processor.total_frames
             good_frames = ctx.video_processor.good_frames
             baseline = ctx.video_processor.baseline_angle
+            movement = ctx.video_processor.last_movement
+            stage = ctx.video_processor.stage
 
         live_score = int((good_frames / total_frames) * 100) if total_frames else 0
 
@@ -361,8 +378,11 @@ with right:
             st.markdown(f"<div class='neutral-box'>{feedback}</div>", unsafe_allow_html=True)
 
         st.write(f"**Reps:** {reps}")
+        st.write(f"**Stage:** {stage}")
         st.write(f"**Duration:** {duration} seconds")
         st.write(f"**Live Score:** {live_score}%")
+        st.write(f"**ROM Used:** {saved_rom if saved_rom is not None else 'General'}")
+        st.write(f"**Rep Target:** {round(rep_threshold, 1)}°")
 
         if angle is not None:
             st.write(f"**Current Angle:** {int(angle)}°")
@@ -370,13 +390,16 @@ with right:
         if baseline is not None:
             st.write(f"**Baseline Angle:** {int(baseline)}°")
 
-        st.write(f"**ROM Used:** {saved_rom if saved_rom is not None else 'General target'}")
+        st.write(f"**Movement From Baseline:** {int(movement)}°")
 
         if st.button("End Session & Save", use_container_width=True):
             accuracy_score, avg_angle_error = calculate_adaptive_accuracy(
                 template,
                 angles,
-                targets
+                {
+                    "top": rep_threshold,
+                    "bottom": return_threshold
+                }
             )
 
             session_id = save_exercise_session(
