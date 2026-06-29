@@ -141,6 +141,6 @@ st.divider()
 if st.button("Sign Out", use_container_width=True):
     st.session_state.clear()
     st.success("Signed out successfully.")
-    st.switch_page("pages/01_Welcome.py")
+    st.switch_page("app/main.py")
 
 bottom_nav()
