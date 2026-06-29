@@ -4,7 +4,6 @@ import mediapipe as mp
 import time
 import av
 from threading import Lock
-
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 
 from db import save_exercise_session
@@ -17,7 +16,6 @@ from ui import apply_style, bottom_nav
 from movement_templates import MOVEMENT_TEMPLATES
 from coaching_engine import (
     get_template_angle,
-    update_rep_state,
     calculate_adaptive_accuracy,
     get_adaptive_targets
 )
@@ -28,40 +26,36 @@ apply_style()
 st.markdown("""
 <style>
 [data-testid="stVerticalBlock"] video {
-    max-width: 520px !important;
-    max-height: 390px !important;
+    max-width: 500px !important;
+    max-height: 370px !important;
     border-radius: 18px !important;
     margin: auto !important;
     display: block !important;
 }
-
 .live-card {
     background: rgba(31,36,33,0.90);
     padding: 22px;
     border-radius: 18px;
     margin-bottom: 16px;
 }
-
 .good-box {
-    background: rgba(0, 150, 70, 0.25);
+    background: rgba(0,150,70,0.25);
     border: 3px solid #00d46a;
-    padding: 18px;
+    padding: 16px;
     border-radius: 16px;
     font-weight: 900;
 }
-
 .bad-box {
-    background: rgba(190, 0, 0, 0.25);
+    background: rgba(190,0,0,0.25);
     border: 3px solid #ff3333;
-    padding: 18px;
+    padding: 16px;
     border-radius: 16px;
     font-weight: 900;
 }
-
 .neutral-box {
-    background: rgba(120, 120, 120, 0.22);
+    background: rgba(120,120,120,0.22);
     border: 3px solid #aaaaaa;
-    padding: 18px;
+    padding: 16px;
     border-radius: 16px;
     font-weight: 900;
 }
@@ -97,13 +91,52 @@ side = "RIGHT" if side_label == "Right" else "LEFT"
 
 targets = get_adaptive_targets(template, st.session_state, side_label)
 
+
+def get_mobility_key_for_template(template_name, exercise_name, side_label):
+    text = f"{template_name} {exercise_name}".lower()
+
+    if "shoulder" in text or "press" in text or "raise" in text:
+        return f"{side_label}_Shoulder_Flexion"
+
+    if "row" in text or "curl" in text or "bicep" in text or "tricep" in text:
+        return f"{side_label}_Elbow_Flexion"
+
+    if "squat" in text or "leg" in text or "knee" in text:
+        return f"{side_label}_Knee_Flexion"
+
+    if "hip" in text or "glute" in text:
+        return f"{side_label}_Hip_Flexion"
+
+    if "ankle" in text or "calf" in text:
+        return f"{side_label}_Ankle_Mobility"
+
+    return None
+
+
+mobility_key = get_mobility_key_for_template(template, exercise_name, side_label)
+
+saved_start = None
+saved_limit = None
+saved_rom = None
+saved_direction = None
+
+if mobility_key:
+    saved_start = st.session_state.get(f"{mobility_key}_starting_angle")
+    saved_limit = st.session_state.get(f"{mobility_key}_safe_limit_angle")
+    saved_rom = st.session_state.get(f"{mobility_key}_rom")
+    saved_direction = st.session_state.get(f"{mobility_key}_direction")
+
+if saved_rom is not None:
+    saved_rom = int(saved_rom)
+
 st.markdown(f"""
 <div class="live-card">
 <h3>Adaptive Coaching Targets</h3>
-<p><b>Movement template:</b> {template}</p>
-<p><b>Top target:</b> {targets.get("top")}</p>
-<p><b>Bottom target:</b> {targets.get("bottom")}</p>
-<p>These targets use your saved mobility test results where available.</p>
+<p><b>Exercise template:</b> {template}</p>
+<p><b>Mobility result used:</b> {mobility_key if mobility_key else "General movement"}</p>
+<p><b>Saved ROM:</b> {saved_rom if saved_rom is not None else "Not found"}°</p>
+<p><b>Saved safe limit:</b> {saved_limit if saved_limit is not None else "Not found"}°</p>
+<p>This session counts reps using your tested ROM, not a normal full-body range.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -120,11 +153,13 @@ class ExerciseProcessor:
         )
 
         self.counter = 0
-        self.stage = "down"
+        self.stage = "rest"
         self.session_start_time = time.time()
         self.angles = []
-        self.last_feedback = "Ready"
+        self.baseline_samples = []
+        self.baseline_angle = None
         self.last_angle = None
+        self.last_feedback = "Ready"
         self.status = "neutral"
         self.good_frames = 0
         self.bad_frames = 0
@@ -141,8 +176,6 @@ class ExerciseProcessor:
         image = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
         angle = None
-        feedback = "Position not detected clearly"
-        status = "bad"
 
         try:
             if results.pose_landmarks:
@@ -155,75 +188,91 @@ class ExerciseProcessor:
                     side
                 )
 
-                if angle is not None:
-                    fake_state = {
-                        "counter": self.counter,
-                        "stage": self.stage
-                    }
-
-                    feedback, _ = update_rep_state(
-                        template,
-                        angle,
-                        fake_state,
-                        targets
-                    )
-
-                    top_target = targets.get("top")
-                    bottom_target = targets.get("bottom")
-
-                    status = "good"
-
-                    if top_target is not None and bottom_target is not None:
-                        upper = max(top_target, bottom_target) + 12
-                        lower = min(top_target, bottom_target) - 12
-
-                        if angle > upper or angle < lower:
-                            status = "bad"
-                            feedback = "Check form. Stay within your safe range."
-
-                    bad_words = ["too", "wrong", "adjust", "unsafe", "stop", "not"]
-                    if any(word in str(feedback).lower() for word in bad_words):
-                        status = "bad"
-
-                    with self.lock:
-                        self.angles.append(angle)
-                        self.last_angle = angle
-                        self.counter = fake_state["counter"]
-                        self.stage = fake_state["stage"]
-                        self.last_feedback = feedback
-                        self.status = status
-                        self.total_frames += 1
-
-                        if status == "good":
-                            self.good_frames += 1
-                        else:
-                            self.bad_frames += 1
-
                 mp_drawing.draw_landmarks(
                     image,
                     results.pose_landmarks,
                     mp_pose.POSE_CONNECTIONS
                 )
 
+                if angle is not None:
+                    with self.lock:
+                        self.last_angle = angle
+                        self.angles.append(angle)
+                        self.total_frames += 1
+
+                        if self.baseline_angle is None:
+                            self.baseline_samples.append(angle)
+
+                            if len(self.baseline_samples) >= 20:
+                                self.baseline_angle = sum(self.baseline_samples) / len(self.baseline_samples)
+                                self.last_feedback = "Baseline set. Start moving within your comfortable range."
+                                self.status = "neutral"
+
+                        else:
+                            if saved_rom is not None and saved_rom > 0:
+                                rep_threshold = max(5, saved_rom * 0.35)
+                                return_threshold = max(3, saved_rom * 0.12)
+                            else:
+                                rep_threshold = 12
+                                return_threshold = 5
+
+                            if saved_direction == "decrease":
+                                movement_amount = self.baseline_angle - angle
+                            else:
+                                movement_amount = angle - self.baseline_angle
+
+                            movement_amount = max(0, movement_amount)
+
+                            unsafe = False
+
+                            if saved_limit is not None and saved_direction:
+                                limit = int(saved_limit)
+                                margin = 8
+
+                                if saved_direction == "increase" and angle > limit + margin:
+                                    unsafe = True
+
+                                if saved_direction == "decrease" and angle < limit - margin:
+                                    unsafe = True
+
+                            if unsafe:
+                                self.status = "bad"
+                                self.bad_frames += 1
+                                self.last_feedback = "Stop. You are beyond your tested safe range."
+
+                            else:
+                                self.status = "good"
+                                self.good_frames += 1
+                                self.last_feedback = "Good. Stay within your tested range."
+
+                                if self.stage == "rest" and movement_amount >= rep_threshold:
+                                    self.stage = "active"
+
+                                elif self.stage == "active" and movement_amount <= return_threshold:
+                                    self.stage = "rest"
+                                    self.counter += 1
+                                    self.last_feedback = f"Good rep. Total reps: {self.counter}"
+
             else:
                 with self.lock:
-                    self.last_feedback = "No pose detected. Adjust your camera."
                     self.status = "bad"
-                    self.total_frames += 1
                     self.bad_frames += 1
+                    self.total_frames += 1
+                    self.last_feedback = "No pose detected. Adjust your camera."
 
         except Exception:
             with self.lock:
-                self.last_feedback = "Position not detected clearly."
                 self.status = "bad"
+                self.last_feedback = "Position not detected clearly."
 
         with self.lock:
             duration = int(time.time() - self.session_start_time)
             counter = self.counter
             stage = self.stage
-            display_feedback = self.last_feedback
+            feedback = self.last_feedback
             display_angle = self.last_angle
             display_status = self.status
+            baseline = self.baseline_angle
 
         if display_status == "good":
             border_colour = (0, 180, 0)
@@ -232,27 +281,31 @@ class ExerciseProcessor:
         elif display_status == "bad":
             border_colour = (0, 0, 220)
             text_colour = (0, 0, 255)
-            status_text = "RED: CHECK FORM"
+            status_text = "RED: CHECK RANGE"
         else:
             border_colour = (90, 90, 90)
             text_colour = (255, 255, 255)
             status_text = "READY"
 
-        cv2.rectangle(image, (10, 10), (700, 160), (0, 0, 0), -1)
-        cv2.rectangle(image, (10, 10), (700, 160), border_colour, 4)
+        cv2.rectangle(image, (10, 10), (650, 150), (0, 0, 0), -1)
+        cv2.rectangle(image, (10, 10), (650, 150), border_colour, 3)
 
-        cv2.putText(image, status_text, (25, 42),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, text_colour, 2)
+        cv2.putText(image, status_text, (25, 38),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.58, text_colour, 2)
 
         cv2.putText(image, f"Reps: {counter} | Stage: {stage} | Time: {duration}s",
-                    (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+                    (25, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 2)
 
         if display_angle is not None:
             cv2.putText(image, f"Angle: {int(display_angle)} deg",
-                        (25, 108), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+                        (25, 96), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 2)
 
-        cv2.putText(image, str(display_feedback)[:55],
-                    (25, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.50, text_colour, 2)
+        if baseline is not None:
+            cv2.putText(image, f"Baseline: {int(baseline)} deg | ROM target: {saved_rom if saved_rom else 'general'}",
+                        (25, 122), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
+
+        cv2.putText(image, str(feedback)[:55],
+                    (25, 144), cv2.FONT_HERSHEY_SIMPLEX, 0.42, text_colour, 1)
 
         return av.VideoFrame.from_ndarray(image, format="bgr24")
 
@@ -296,11 +349,9 @@ with right:
             status = ctx.video_processor.status
             total_frames = ctx.video_processor.total_frames
             good_frames = ctx.video_processor.good_frames
+            baseline = ctx.video_processor.baseline_angle
 
-        if total_frames > 0:
-            live_score = int((good_frames / total_frames) * 100)
-        else:
-            live_score = 0
+        live_score = int((good_frames / total_frames) * 100) if total_frames else 0
 
         if status == "good":
             st.markdown(f"<div class='good-box'>GREEN: {feedback}</div>", unsafe_allow_html=True)
@@ -315,6 +366,11 @@ with right:
 
         if angle is not None:
             st.write(f"**Current Angle:** {int(angle)}°")
+
+        if baseline is not None:
+            st.write(f"**Baseline Angle:** {int(baseline)}°")
+
+        st.write(f"**ROM Used:** {saved_rom if saved_rom is not None else 'General target'}")
 
         if st.button("End Session & Save", use_container_width=True):
             accuracy_score, avg_angle_error = calculate_adaptive_accuracy(
@@ -333,10 +389,6 @@ with right:
             )
 
             st.success(f"Session saved successfully. Session ID: {session_id}")
-            st.info(
-                f"Exercise: {exercise_name} | Reps: {reps} | "
-                f"Duration: {duration} seconds | Accuracy: {accuracy_score}%"
-            )
 
     else:
         st.info("Start the camera to begin the session.")
