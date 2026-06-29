@@ -105,19 +105,39 @@ def measure_angle(test_name, landmarks, side):
     pts = get_side_points(landmarks, side)
 
     if test_name in ["Shoulder Flexion", "Shoulder Abduction"]:
-        return calculate_angle(pts["hip"], pts["shoulder"], pts["elbow"])
+        return calculate_angle(
+            pts["hip"],
+            pts["shoulder"],
+            pts["wrist"]
+        )
 
     if test_name == "Elbow Flexion":
-        return calculate_angle(pts["shoulder"], pts["elbow"], pts["wrist"])
+        return calculate_angle(
+            pts["shoulder"],
+            pts["elbow"],
+            pts["wrist"]
+        )
 
     if test_name == "Hip Flexion":
-        return calculate_angle(pts["shoulder"], pts["hip"], pts["knee"])
+        return calculate_angle(
+            pts["shoulder"],
+            pts["hip"],
+            pts["knee"]
+        )
 
     if test_name in ["Knee Flexion", "Knee Extension"]:
-        return calculate_angle(pts["hip"], pts["knee"], pts["ankle"])
+        return calculate_angle(
+            pts["hip"],
+            pts["knee"],
+            pts["ankle"]
+        )
 
     if test_name == "Ankle Mobility":
-        return calculate_angle(pts["knee"], pts["ankle"], pts["foot"])
+        return calculate_angle(
+            pts["knee"],
+            pts["ankle"],
+            pts["foot"]
+        )
 
     return None
 
@@ -163,8 +183,7 @@ TESTS = {
 if "mobility_results" not in st.session_state:
     st.session_state["mobility_results"] = {}
 
-st.markdown(
-    """
+st.markdown("""
 <style>
 .mobility-card {
     background: rgba(31,36,33,0.88);
@@ -191,9 +210,7 @@ button {
     font-weight: 800 !important;
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <div class="mobility-card">
@@ -202,7 +219,6 @@ st.markdown("""
     <p><b>Step 2:</b> When the test is completed, press <b>Save Latest Test Result</b>.</p>
     <p><b>Step 3:</b> Repeat for any other mobility tests you want to complete.</p>
     <p><b>Step 4:</b> When finished, press <b>Save Final Mobility Results & Return to Profile Setup</b>.</p>
-    <p class="small-note">These results are saved to your account and used later to guide safer exercise recommendations.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -293,7 +309,7 @@ class MobilityProcessor:
             self.rom = None
             self.done_result = None
 
-            self.status = "Get ready. Stay still for baseline reading."
+            self.status = "Stay still. Baseline reading."
 
     def reset(self):
         with self.lock:
@@ -357,17 +373,15 @@ class MobilityProcessor:
 
             elif self.phase == "countdown":
                 elapsed = now - self.countdown_start
-                remaining = max(0, 6 - int(elapsed))
+                remaining = max(0, 4 - int(elapsed))
 
-                self.status = f"Stay still. Baseline reading. Test starts in {remaining} seconds."
+                self.status = f"Stay still. Test starts in {remaining}s."
 
                 if detected_angle is not None:
                     self.baseline_samples.append(detected_angle)
+                    self.baseline_samples = self.baseline_samples[-20:]
 
-                    if len(self.baseline_samples) > 30:
-                        self.baseline_samples = self.baseline_samples[-30:]
-
-                if elapsed >= 6:
+                if elapsed >= 4:
                     if self.baseline_samples:
                         self.starting_angle = float(np.median(self.baseline_samples))
                         self.safe_limit_angle = self.starting_angle
@@ -377,7 +391,7 @@ class MobilityProcessor:
                         self.status = "Recording. Move now."
                     else:
                         self.phase = "done"
-                        self.status = "No pose detected during baseline. Please retake the test."
+                        self.status = "No pose detected. Retake test."
 
             elif self.phase == "recording":
                 elapsed = now - self.recording_start
@@ -389,42 +403,42 @@ class MobilityProcessor:
                     if direction == "increase":
                         movement = detected_angle - self.starting_angle
 
-                        if movement > 8:
+                        if movement > 2:
                             self.safe_limit_angle = max(self.safe_limit_angle, detected_angle)
                             self.rom = max(0, self.safe_limit_angle - self.starting_angle)
 
                     elif direction == "decrease":
                         movement = self.starting_angle - detected_angle
 
-                        if movement > 8:
+                        if movement > 2:
                             self.safe_limit_angle = min(self.safe_limit_angle, detected_angle)
                             self.rom = max(0, self.starting_angle - self.safe_limit_angle)
 
-                self.status = f"Recording. Move now. Time left: {remaining} seconds."
+                self.status = f"Recording. Time left: {remaining}s."
 
                 if elapsed >= 8:
                     self.phase = "done"
 
-                    if self.starting_angle is not None and self.safe_limit_angle is not None and self.rom is not None:
+                    if self.starting_angle is not None and self.safe_limit_angle is not None:
                         self.done_result = {
                             "starting_angle": int(self.starting_angle),
                             "safe_limit_angle": int(self.safe_limit_angle),
-                            "rom": int(self.rom),
+                            "rom": int(self.rom or 0),
                             "direction": direction,
                         }
 
                         self.status = (
-                            f"Test completed. ROM: {int(self.rom)} degrees. "
-                            f"Safe limit: {int(self.safe_limit_angle)} degrees."
+                            f"Done. ROM: {int(self.rom or 0)} deg. "
+                            f"Limit: {int(self.safe_limit_angle)} deg."
                         )
                     else:
-                        self.status = "Test completed. No clear movement detected."
+                        self.status = "Done. No clear movement."
 
             elif self.phase == "done":
                 if self.done_result:
                     self.status = (
-                        f"Test completed. ROM: {self.done_result['rom']} degrees. "
-                        f"Safe limit: {self.done_result['safe_limit_angle']} degrees."
+                        f"Done. ROM: {self.done_result['rom']} deg. "
+                        f"Limit: {self.done_result['safe_limit_angle']} deg."
                     )
 
             status_text = self.status
@@ -441,25 +455,23 @@ class MobilityProcessor:
             pose_text = "NO POSE DETECTED"
             pose_colour = (0, 0, 255)
 
-        cv2.rectangle(image, (10, 10), (970, 265), (0, 0, 0), -1)
-        cv2.putText(image, status_text[:60], (30, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
+        # small overlay only, no giant black box
+        cv2.rectangle(image, (10, 10), (620, 150), (0, 0, 0), -1)
 
-        if len(status_text) > 60:
-            cv2.putText(image, status_text[60:120], (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
-
-        cv2.putText(image, pose_text, (30, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.72, pose_colour, 2)
+        cv2.putText(image, status_text[:46], (25, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+        cv2.putText(image, pose_text, (25, 72), cv2.FONT_HERSHEY_SIMPLEX, 0.55, pose_colour, 2)
 
         if starting_angle is not None:
-            cv2.putText(image, f"Starting angle: {int(starting_angle)} degrees", (30, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
+            cv2.putText(image, f"Start: {int(starting_angle)} deg", (25, 102), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 2)
 
         if current_angle is not None:
-            cv2.putText(image, f"Current angle: {int(current_angle)} degrees", (30, 205), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
-
-        if safe_limit_angle is not None:
-            cv2.putText(image, f"Safe limit: {int(safe_limit_angle)} degrees", (30, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
+            cv2.putText(image, f"Current: {int(current_angle)} deg", (210, 102), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 2)
 
         if rom is not None:
-            cv2.putText(image, f"ROM: {int(rom)} degrees", (520, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
+            cv2.putText(image, f"ROM: {int(rom)} deg", (430, 102), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 2)
+
+        if safe_limit_angle is not None:
+            cv2.putText(image, f"Safe limit: {int(safe_limit_angle)} deg", (25, 132), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 2)
 
         return av.VideoFrame.from_ndarray(image, format="rgb24")
 
@@ -493,25 +505,21 @@ with left:
 with right:
     st.markdown(
         f"""
-    <div class="mobility-card">
-        <h3>{selected_side} {test_name}</h3>
-        <p><b>Instruction:</b> {test["instruction"]}</p>
-        <p><b>Step 1:</b> Stay still during the 6-second baseline reading.</p>
-        <p><b>Step 2:</b> Move only when the screen says “Recording. Move now.”</p>
-        <p><b>Step 3:</b> When the test is completed, press <b>Save Latest Test Result</b>.</p>
-        <p><b>Final Step:</b> After all tests are done, press <b>Save Final Mobility Results & Return to Profile Setup</b>.</p>
-    </div>
-    """,
+<div class="mobility-card">
+    <h3>{selected_side} {test_name}</h3>
+    <p><b>Instruction:</b> {test["instruction"]}</p>
+    <p><b>Step 1:</b> Stay still during the baseline reading.</p>
+    <p><b>Step 2:</b> Move only when the screen says “Recording. Move now.”</p>
+    <p><b>Step 3:</b> After the test ends, press <b>Save Latest Test Result</b>.</p>
+</div>
+""",
         unsafe_allow_html=True,
     )
 
     if st.button("Read Instructions Aloud", use_container_width=True):
         speak(
             f"{selected_side} {test_name}. {test['instruction']} "
-            "Stay still during the six second baseline reading. "
-            "Move only when the screen says recording. Move now. "
-            "After the test finishes, press save latest test result. "
-            "When all tests are done, press save final mobility results and return to profile setup."
+            "Stay still during baseline. Move only when the screen says recording."
         )
 
     start_pressed = st.button("Start Measurement", use_container_width=True)
@@ -520,7 +528,7 @@ with right:
     if start_pressed:
         if ctx.video_processor:
             ctx.video_processor.start_measurement()
-            speak("Measurement started. Stay still for baseline. Move only when the screen says recording.")
+            speak("Measurement started. Stay still for baseline.")
         else:
             st.warning("Start the camera first.")
 
@@ -582,14 +590,6 @@ with right:
         st.warning("Start the camera first before pressing Start Measurement.")
 
 st.divider()
-
-st.markdown("""
-<div class="mobility-card">
-    <h3>Save Your Results</h3>
-    <p><b>Important:</b> After each completed test, press <b>Save Latest Test Result</b>.</p>
-    <p>When you are finished with all tests, press <b>Save Final Mobility Results & Return to Profile Setup</b>.</p>
-</div>
-""", unsafe_allow_html=True)
 
 if st.button("Save Latest Test Result", use_container_width=True):
     if ctx.video_processor:
