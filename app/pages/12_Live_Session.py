@@ -185,17 +185,15 @@ else:
 st.markdown(f"""
 <div class="live-page">
 <div class="live-card">
-    <h3>How to Use This Session</h3>
-
-    <div class="instruction-step">1. Select the side you are training.</div>
-    <div class="instruction-step">2. Press START on the camera box and allow camera permission.</div>
-    <div class="instruction-step">3. Hold still for a few seconds so the system can set your baseline.</div>
-    <div class="instruction-step">4. Move slowly within your comfortable range.</div>
-    <div class="instruction-step">5. Green means good range. Red means adjust your position or movement.</div>
-
-    <p><b>ROM used:</b> {saved_rom if saved_rom is not None else "General range"}°</p>
-    <p><b>Mobility result:</b> {mobility_key if mobility_key else "No matching test found"}</p>
-    <p><b>Rep target:</b> {round(rep_threshold, 1)}° movement from baseline</p>
+<h3>How to Use This Session</h3>
+<div class="instruction-step">1. Select the side you are training.</div>
+<div class="instruction-step">2. Press START on the camera box and allow camera permission.</div>
+<div class="instruction-step">3. Hold still for a few seconds so the system can set your baseline.</div>
+<div class="instruction-step">4. Move slowly within your comfortable range.</div>
+<div class="instruction-step">5. Green means good range. Red means adjust your position or movement.</div>
+<p><b>ROM used:</b> {saved_rom if saved_rom is not None else "General range"}°</p>
+<p><b>Mobility result:</b> {mobility_key if mobility_key else "No matching test found"}</p>
+<p><b>Rep target:</b> {round(rep_threshold, 1)}° movement from baseline</p>
 </div>
 </div>
 """, unsafe_allow_html=True)
