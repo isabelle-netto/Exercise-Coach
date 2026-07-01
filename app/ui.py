@@ -95,26 +95,48 @@ def apply_style():
 
 
 def bottom_nav():
-    st.markdown("<div class='nav-gap'></div>", unsafe_allow_html=True)
+    import streamlit as st
 
-    st.markdown("<div class='floating-nav'>", unsafe_allow_html=True)
+    st.markdown("""
+<style>
+.floating-nav-html {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    width: 330px;
+    height: 64px;
+    background: rgba(18, 16, 15, 0.88);
+    border: 1px solid rgba(159,185,212,0.5);
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 999999;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.45);
+    backdrop-filter: blur(16px);
+}
 
-    col1, col2, col3, col4 = st.columns(4)
+.floating-nav-html a {
+    text-decoration: none;
+    font-size: 25px;
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+}
 
-    with col1:
-        if st.button("🏠", use_container_width=True, key="nav_home", help="Home"):
-            st.switch_page("pages/07_Home.py")
+.floating-nav-html a:hover {
+    background: rgba(159,185,212,0.28);
+}
+</style>
 
-    with col2:
-        if st.button("🏋️", use_container_width=True, key="nav_exercises", help="Exercises"):
-            st.switch_page("pages/08_Exercises.py")
-
-    with col3:
-        if st.button("📊", use_container_width=True, key="nav_stats", help="Stats"):
-            st.switch_page("pages/09_Stats.py")
-
-    with col4:
-        if st.button("👤", use_container_width=True, key="nav_profile", help="Profile"):
-            st.switch_page("pages/11_Update_Profile.py")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+<div class="floating-nav-html">
+    <a href="/Home" target="_self" title="Home">🏠</a>
+    <a href="/Exercises" target="_self" title="Exercises">🏋️</a>
+    <a href="/Stats" target="_self" title="Stats">📊</a>
+    <a href="/Update_Profile" target="_self" title="Profile">👤</a>
+</div>
+""", unsafe_allow_html=True)
