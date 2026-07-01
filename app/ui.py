@@ -22,7 +22,7 @@ def apply_style():
 
     .block-container {
         padding-top: 0 !important;
-        padding-bottom: 95px !important;
+        padding-bottom: 120px !important;
         padding-left: 0 !important;
         padding-right: 0 !important;
         max-width: 100% !important;
@@ -47,45 +47,45 @@ def apply_style():
         letter-spacing: 0.5px;
     }
 
-    .nav-gap {
-        height: 110px;
-    }
-
-    .floating-nav {
+    .st-key-floating_bottom_nav {
         position: fixed;
-        bottom: 22px;
         left: 50%;
+        bottom: 24px;
         transform: translateX(-50%);
-        width: min(430px, 92vw);
-        background: rgba(18, 16, 15, 0.82);
-        border: 1px solid rgba(159, 185, 212, 0.45);
+        width: min(390px, 88vw);
+        background: rgba(18, 16, 15, 0.88);
+        border: 1px solid rgba(159,185,212,0.55);
         border-radius: 999px;
-        padding: 10px 12px;
+        padding: 10px 14px;
         z-index: 999999;
         box-shadow: 0 12px 35px rgba(0,0,0,0.45);
         backdrop-filter: blur(16px);
     }
 
-    .floating-nav div.stButton > button {
+    .st-key-floating_bottom_nav div[data-testid="stHorizontalBlock"] {
+        gap: 0.4rem !important;
+    }
+
+    .st-key-floating_bottom_nav div.stButton > button {
         background: transparent !important;
         border: none !important;
         color: white !important;
         box-shadow: none !important;
-        height: 48px !important;
-        min-height: 48px !important;
-        font-size: 24px !important;
+        height: 46px !important;
+        min-height: 46px !important;
+        font-size: 23px !important;
         padding: 0 !important;
         border-radius: 999px !important;
         text-transform: none !important;
         letter-spacing: 0 !important;
     }
 
-    .floating-nav div.stButton > button:hover {
-        background: rgba(159, 185, 212, 0.28) !important;
-        transform: scale(1.06);
+    .st-key-floating_bottom_nav div.stButton > button:hover {
+        background: rgba(159,185,212,0.28) !important;
+        transform: scale(1.08);
     }
 
-    .floating-nav div.stButton > button * {
+    .st-key-floating_bottom_nav div.stButton > button * {
         color: white !important;
     }
     </style>
@@ -95,48 +95,23 @@ def apply_style():
 
 
 def bottom_nav():
-    import streamlit as st
+    st.markdown("<div style='height:95px'></div>", unsafe_allow_html=True)
 
-    st.markdown("""
-<style>
-.floating-nav-html {
-    position: fixed;
-    left: 50%;
-    bottom: 24px;
-    transform: translateX(-50%);
-    width: 330px;
-    height: 64px;
-    background: rgba(18, 16, 15, 0.88);
-    border: 1px solid rgba(159,185,212,0.5);
-    border-radius: 999px;
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    z-index: 999999;
-    box-shadow: 0 12px 35px rgba(0,0,0,0.45);
-    backdrop-filter: blur(16px);
-}
+    with st.container(key="floating_bottom_nav"):
+        col1, col2, col3, col4 = st.columns(4)
 
-.floating-nav-html a {
-    text-decoration: none;
-    font-size: 25px;
-    width: 52px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-}
+        with col1:
+            if st.button("🏠", use_container_width=True, key="nav_home", help="Home"):
+                st.switch_page("pages/07_Home.py")
 
-.floating-nav-html a:hover {
-    background: rgba(159,185,212,0.28);
-}
-</style>
+        with col2:
+            if st.button("🏋️", use_container_width=True, key="nav_exercises", help="Exercises"):
+                st.switch_page("pages/08_Exercises.py")
 
-<div class="floating-nav-html">
-    <a href="/Home" target="_self" title="Home">🏠</a>
-    <a href="/Exercises" target="_self" title="Exercises">🏋️</a>
-    <a href="/Stats" target="_self" title="Stats">📊</a>
-    <a href="/Update_Profile" target="_self" title="Profile">👤</a>
-</div>
-""", unsafe_allow_html=True)
+        with col3:
+            if st.button("📊", use_container_width=True, key="nav_stats", help="Stats"):
+                st.switch_page("pages/09_Stats.py")
+
+        with col4:
+            if st.button("👤", use_container_width=True, key="nav_profile", help="Profile"):
+                st.switch_page("pages/11_Update_Profile.py")
