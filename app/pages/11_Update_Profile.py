@@ -1,11 +1,15 @@
 import streamlit as st
 from ui import apply_style, bottom_nav
-from accessibility import accessibility_settings_panel, speak
+from accessibility import (
+    accessibility_settings_panel,
+    speak,
+    save_accessibility_settings,
+)
 from db import (
     get_user_profile,
     get_user_equipment,
     get_user_goals,
-    get_user_mobility_results
+    get_user_mobility_results,
 )
 
 st.set_page_config(page_title="Profile Settings", layout="wide")
@@ -21,12 +25,22 @@ if not user_id:
 
 name = st.session_state.get("user_name", "User")
 
-movement_capability = get_user_profile(user_id) or st.session_state.get("limitation_category", "Not set")
-equipment = get_user_equipment(user_id) or st.session_state.get("selected_equipment", [])
-goals = get_user_goals(user_id) or st.session_state.get("fitness_goals", [])
+movement_capability = get_user_profile(user_id) or st.session_state.get(
+    "limitation_category", "Not set"
+)
+
+equipment = get_user_equipment(user_id) or st.session_state.get(
+    "selected_equipment", []
+)
+
+goals = get_user_goals(user_id) or st.session_state.get(
+    "fitness_goals", []
+)
+
 mobility_results = get_user_mobility_results(user_id)
 
-st.markdown("""
+st.markdown(
+    """
 <style>
 .profile-wrapper {
     padding: 35px;
@@ -55,7 +69,6 @@ st.markdown("""
     border-radius: 22px;
     padding: 26px;
     margin-bottom: 20px;
-    min-height: 170px;
 }
 
 .profile-card h3 {
@@ -84,9 +97,12 @@ st.markdown("""
     font-weight: 700;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.markdown(f"""
+st.markdown(
+    f"""
 <div class="profile-wrapper">
 
 <div class="profile-hero">
@@ -96,71 +112,105 @@ st.markdown(f"""
         mobility data, and account options.
     </div>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown(f"""
-    <div class="profile-card">
-        <h3>Movement Capability</h3>
-        <div class="profile-muted">Based on your profile setup selection.</div>
-        <div class="profile-value">{movement_capability}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+<div class="profile-card">
+    <h3>Movement Capability</h3>
+    <div class="profile-muted">Based on your profile setup selection.</div>
+    <div class="profile-value">{movement_capability}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 with col2:
     goals_text = ", ".join(goals) if goals else "Not set"
-    st.markdown(f"""
-    <div class="profile-card">
-        <h3>Fitness Goals</h3>
-        <div class="profile-muted">Used to personalise diary questions and exercise recommendations.</div>
-        <div class="profile-value">{goals_text}</div>
+
+    st.markdown(
+        f"""
+<div class="profile-card">
+    <h3>Fitness Goals</h3>
+    <div class="profile-muted">
+        Used to personalise diary questions and exercise recommendations.
     </div>
-    """, unsafe_allow_html=True)
+    <div class="profile-value">{goals_text}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 equipment_text = ", ".join(equipment) if equipment else "Not set"
 
-st.markdown(f"""
+st.markdown(
+    f"""
 <div class="profile-card">
     <h3>Available Equipment</h3>
     <div class="profile-muted">Used to filter suitable exercises.</div>
     <div class="profile-value">{equipment_text}</div>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.markdown("""
+st.markdown(
+    """
 <div class="profile-card">
     <h3>Accessibility Settings</h3>
     <div class="profile-muted">
         Adjust theme, text size, and audio feedback.
     </div>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-from accessibility import accessibility_settings_panel, speak, save_accessibility_settings
+accessibility_settings_panel()
 
-if st.button("Save Accessibility Preferences", use_container_width=True):
-    save_accessibility_settings()
-    st.success("Accessibility preferences saved.")
-    st.rerun()
+col_a, col_b = st.columns(2)
 
-st.markdown("""
+with col_a:
+    if st.button("Read Accessibility Settings", use_container_width=True):
+        speak(
+            "Accessibility settings. You can change theme, text size, "
+            "and audio feedback."
+        )
+
+with col_b:
+    if st.button("Save Accessibility Preferences", use_container_width=True):
+        save_accessibility_settings()
+        st.success("Accessibility preferences saved.")
+        st.rerun()
+
+st.markdown(
+    """
 <div class="profile-card">
     <h3>Mobility Assessment</h3>
     <div class="profile-muted">
         Your mobility test results help the system understand your range of motion.
     </div>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 if mobility_results:
     for key, result in mobility_results.items():
-        st.markdown(f"""
-        <span class="result-pill">
-            {key}: ROM {result.get("rom", 0)}°, Safe Limit {result.get("safe_limit_angle", 0)}°
-        </span>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f"""
+<span class="result-pill">
+    {key}: ROM {result.get("rom", 0)}°, 
+    Safe Limit {result.get("safe_limit_angle", 0)}°
+</span>
+""",
+            unsafe_allow_html=True,
+        )
 else:
     st.info("No saved mobility test results yet.")
 
