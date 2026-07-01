@@ -16,9 +16,9 @@ def init_accessibility_settings():
 
 
 def save_accessibility_settings():
-    st.session_state["theme"] = st.session_state.get("theme", "Dark")
-    st.session_state["text_size"] = st.session_state.get("text_size", "Standard")
-    st.session_state["audio_feedback"] = st.session_state.get("audio_feedback", False)
+    # Values are already saved automatically in st.session_state
+    # because the widgets use key="theme", key="text_size", and key="audio_feedback".
+    return
 
 
 def accessibility_settings_panel(use_popover=False):
