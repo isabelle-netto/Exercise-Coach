@@ -17,9 +17,7 @@ apply_style()
 
 st.markdown("""
 <style>
-.live-page {
-    padding: 34px;
-}
+.live-page { padding: 34px; }
 
 .live-hero {
     background: linear-gradient(135deg, #1f2421, #2d3530);
@@ -45,11 +43,6 @@ st.markdown("""
     padding: 24px;
     border-radius: 22px;
     margin-bottom: 18px;
-}
-
-.live-card h3 {
-    margin-top: 0;
-    font-size: 24px;
 }
 
 .instruction-step {
@@ -118,17 +111,16 @@ template = MOVEMENT_TEMPLATES.get(exercise_name, "general")
 st.markdown(f"""
 <div class="live-page">
 <div class="live-hero">
-    <div class="live-title">Live Exercise Session</div>
-    <div class="live-subtitle">
-        Current exercise: <b>{exercise_name}</b><br>
-        Follow the camera guidance and stay within your comfortable tested range.
-    </div>
+<div class="live-title">Live Exercise Session</div>
+<div class="live-subtitle">
+Current exercise: <b>{exercise_name}</b><br>
+Follow the camera guidance and stay within your comfortable tested range.
+</div>
 </div>
 </div>
 """, unsafe_allow_html=True)
 
-with st.expander("Accessibility Settings", expanded=False):
-    accessibility_settings_panel()
+accessibility_settings_panel()
 
 side_label = st.radio("Which side are you training?", ["Right", "Left"], horizontal=True)
 side = "RIGHT" if side_label == "Right" else "LEFT"
@@ -212,14 +204,21 @@ mp_drawing = mp.solutions.drawing_utils
 class ExerciseProcessor:
     def __init__(self):
         self.lock = Lock()
-        self.pose = mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=0,
-            smooth_landmarks=False,
-            enable_segmentation=False,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
+
+        try:
+            self.pose = mp_pose.Pose(
+                static_image_mode=False,
+                smooth_landmarks=False,
+                enable_segmentation=False,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+            self.pose_ready = True
+            self.pose_error = ""
+        except Exception as e:
+            self.pose = None
+            self.pose_ready = False
+            self.pose_error = str(e)
 
         self.counter = 0
         self.stage = "rest"
@@ -241,6 +240,20 @@ class ExerciseProcessor:
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
 
+        if not self.pose_ready or self.pose is None:
+            cv2.rectangle(img, (10, 10), (620, 130), (0, 0, 0), -1)
+            cv2.rectangle(img, (10, 10), (620, 130), (0, 0, 255), 3)
+            cv2.putText(img, "POSE MODEL NOT AVAILABLE", (25, 45),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 255), 2)
+            cv2.putText(img, "Reboot app or check MediaPipe install.", (25, 80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
+
+            with self.lock:
+                self.status = "bad"
+                self.last_feedback = "Pose model could not load on Streamlit Cloud."
+
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
+
         image_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         image_rgb.flags.writeable = False
         results = self.pose.process(image_rgb)
@@ -251,7 +264,6 @@ class ExerciseProcessor:
         try:
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
-
                 angle = get_template_angle(template, landmarks, mp_pose, side)
 
                 mp_drawing.draw_landmarks(
@@ -447,10 +459,7 @@ with right:
             accuracy_score, avg_angle_error = calculate_adaptive_accuracy(
                 template,
                 angles,
-                {
-                    "top": rep_threshold,
-                    "bottom": return_threshold
-                }
+                {"top": rep_threshold, "bottom": return_threshold}
             )
 
             session_id = save_exercise_session(
