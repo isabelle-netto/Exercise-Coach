@@ -8,6 +8,7 @@ from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 
 from db import save_exercise_session, load_mobility_results_to_session
 from ui import apply_style, bottom_nav
+from accessibility import accessibility_settings_panel, speak
 from movement_templates import MOVEMENT_TEMPLATES
 from coaching_engine import get_template_angle, calculate_adaptive_accuracy
 
@@ -16,19 +17,50 @@ apply_style()
 
 st.markdown("""
 <style>
-[data-testid="stVerticalBlock"] video {
-    max-width: 480px !important;
-    max-height: 360px !important;
-    border-radius: 18px !important;
-    margin: auto !important;
-    display: block !important;
+.live-page {
+    padding: 34px;
 }
+
+.live-hero {
+    background: linear-gradient(135deg, #1f2421, #2d3530);
+    border-radius: 28px;
+    padding: 38px;
+    margin-bottom: 24px;
+}
+
+.live-title {
+    font-size: 48px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.live-subtitle {
+    font-size: 18px;
+    opacity: 0.82;
+    margin-top: 12px;
+}
+
 .live-card {
-    background: rgba(31,36,33,0.90);
-    padding: 22px;
-    border-radius: 18px;
-    margin-bottom: 16px;
+    background: rgba(31,36,33,0.92);
+    padding: 24px;
+    border-radius: 22px;
+    margin-bottom: 18px;
 }
+
+.live-card h3 {
+    margin-top: 0;
+    font-size: 24px;
+}
+
+.instruction-step {
+    background: rgba(159,185,212,0.14);
+    border: 1px solid #9fb9d4;
+    padding: 13px 16px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
 .good-box {
     background: rgba(0,150,70,0.25);
     border: 3px solid #00d46a;
@@ -36,6 +68,7 @@ st.markdown("""
     border-radius: 16px;
     font-weight: 900;
 }
+
 .bad-box {
     background: rgba(190,0,0,0.25);
     border: 3px solid #ff3333;
@@ -43,6 +76,7 @@ st.markdown("""
     border-radius: 16px;
     font-weight: 900;
 }
+
 .neutral-box {
     background: rgba(120,120,120,0.22);
     border: 3px solid #aaaaaa;
@@ -50,15 +84,20 @@ st.markdown("""
     border-radius: 16px;
     font-weight: 900;
 }
+
+[data-testid="stVerticalBlock"] video {
+    max-width: 430px !important;
+    max-height: 320px !important;
+    border-radius: 18px !important;
+    margin: auto !important;
+    display: block !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
 user_id = st.session_state.get("user_id")
 exercise_id = st.session_state.get("active_exercise_id")
 exercise_name = st.session_state.get("active_exercise_name", "Selected Exercise")
-
-st.title("Live Exercise Session")
-st.write(f"Current Exercise: **{exercise_name}**")
 
 if not user_id:
     st.warning("Please sign in before starting a session.")
@@ -76,6 +115,21 @@ if not exercise_id:
 
 template = MOVEMENT_TEMPLATES.get(exercise_name, "general")
 
+st.markdown(f"""
+<div class="live-page">
+<div class="live-hero">
+    <div class="live-title">Live Exercise Session</div>
+    <div class="live-subtitle">
+        Current exercise: <b>{exercise_name}</b><br>
+        Follow the camera guidance and stay within your comfortable tested range.
+    </div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+
+with st.expander("Accessibility Settings", expanded=False):
+    accessibility_settings_panel()
+
 side_label = st.radio("Which side are you training?", ["Right", "Left"], horizontal=True)
 side = "RIGHT" if side_label == "Right" else "LEFT"
 
@@ -85,16 +139,12 @@ def get_mobility_key(template_name, exercise_name, side_label):
 
     if "shoulder" in text or "press" in text or "raise" in text:
         return f"{side_label}_Shoulder_Flexion"
-
     if "curl" in text or "bicep" in text or "tricep" in text or "row" in text:
         return f"{side_label}_Elbow_Flexion"
-
     if "squat" in text or "leg" in text or "knee" in text:
         return f"{side_label}_Knee_Flexion"
-
     if "hip" in text or "glute" in text:
         return f"{side_label}_Hip_Flexion"
-
     if "calf" in text or "ankle" in text:
         return f"{side_label}_Ankle_Mobility"
 
@@ -125,10 +175,6 @@ except Exception:
 if not saved_direction:
     saved_direction = "increase"
 
-# IMPORTANT:
-# Rep threshold must be LOW enough for limited-ROM users.
-# If saved ROM is 20°, threshold becomes 6°.
-# If no ROM exists, it still counts using 12°.
 if saved_rom and saved_rom > 0:
     rep_threshold = max(4, saved_rom * 0.30)
     return_threshold = max(2, saved_rom * 0.10)
@@ -137,17 +183,29 @@ else:
     return_threshold = 5
 
 st.markdown(f"""
+<div class="live-page">
 <div class="live-card">
-<h3>Adaptive ROM Settings Used</h3>
-<p><b>Movement template:</b> {template}</p>
-<p><b>Mobility result used:</b> {mobility_key if mobility_key else "No matching mobility test found"}</p>
-<p><b>Saved ROM:</b> {saved_rom if saved_rom is not None else "Not found"}°</p>
-<p><b>Safe limit:</b> {saved_limit if saved_limit is not None else "Not found"}°</p>
-<p><b>Rep threshold:</b> {round(rep_threshold, 1)}°</p>
-<p><b>Return threshold:</b> {round(return_threshold, 1)}°</p>
-<p>This means the system counts reps based on your tested range, not a normal full range.</p>
+    <h3>How to Use This Session</h3>
+
+    <div class="instruction-step">1. Select the side you are training.</div>
+    <div class="instruction-step">2. Press START on the camera box and allow camera permission.</div>
+    <div class="instruction-step">3. Hold still for a few seconds so the system can set your baseline.</div>
+    <div class="instruction-step">4. Move slowly within your comfortable range.</div>
+    <div class="instruction-step">5. Green means good range. Red means adjust your position or movement.</div>
+
+    <p><b>ROM used:</b> {saved_rom if saved_rom is not None else "General range"}°</p>
+    <p><b>Mobility result:</b> {mobility_key if mobility_key else "No matching test found"}</p>
+    <p><b>Rep target:</b> {round(rep_threshold, 1)}° movement from baseline</p>
+</div>
 </div>
 """, unsafe_allow_html=True)
+
+if st.button("Read Session Instructions", use_container_width=True):
+    speak(
+        f"Live exercise session for {exercise_name}. Select your side, start the camera, "
+        "hold still for baseline, then move slowly within your comfortable range. "
+        "Green means good movement. Red means adjust your position."
+    )
 
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
@@ -157,6 +215,10 @@ class ExerciseProcessor:
     def __init__(self):
         self.lock = Lock()
         self.pose = mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=0,
+            smooth_landmarks=False,
+            enable_segmentation=False,
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5
         )
@@ -192,12 +254,7 @@ class ExerciseProcessor:
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
 
-                angle = get_template_angle(
-                    template,
-                    landmarks,
-                    mp_pose,
-                    side
-                )
+                angle = get_template_angle(template, landmarks, mp_pose, side)
 
                 mp_drawing.draw_landmarks(
                     image,
@@ -235,7 +292,6 @@ class ExerciseProcessor:
 
                                 if saved_direction == "increase" and angle > saved_limit + margin:
                                     unsafe = True
-
                                 if saved_direction == "decrease" and angle < saved_limit - margin:
                                     unsafe = True
 
@@ -243,7 +299,6 @@ class ExerciseProcessor:
                                 self.status = "bad"
                                 self.bad_frames += 1
                                 self.last_feedback = "Stop. Beyond tested safe range."
-
                             else:
                                 self.status = "good"
                                 self.good_frames += 1
@@ -302,25 +357,22 @@ class ExerciseProcessor:
             text_colour = (255, 255, 255)
             status_text = "READY"
 
-        cv2.rectangle(image, (10, 10), (650, 155), (0, 0, 0), -1)
-        cv2.rectangle(image, (10, 10), (650, 155), border_colour, 3)
+        cv2.rectangle(image, (10, 10), (620, 140), (0, 0, 0), -1)
+        cv2.rectangle(image, (10, 10), (620, 140), border_colour, 3)
 
         cv2.putText(image, status_text, (25, 38),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.58, text_colour, 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, text_colour, 2)
 
         cv2.putText(image, f"Reps: {counter} | Stage: {stage} | Time: {duration}s",
-                    (25, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 2)
+                    (25, 66), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
 
         if display_angle is not None:
-            cv2.putText(image, f"Angle: {int(display_angle)} deg | Move: {int(movement)} deg",
-                        (25, 96), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 2)
+            cv2.putText(image, f"Angle: {int(display_angle)} | Move: {int(movement)}",
+                        (25, 94), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
 
         if baseline is not None:
-            cv2.putText(image, f"Base: {int(baseline)} | Rep target: {round(rep_threshold,1)} deg",
-                        (25, 122), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
-
-        cv2.putText(image, str(feedback)[:55],
-                    (25, 146), cv2.FONT_HERSHEY_SIMPLEX, 0.42, text_colour, 1)
+            cv2.putText(image, f"Base: {int(baseline)} | Target: {round(rep_threshold,1)}",
+                        (25, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1)
 
         return av.VideoFrame.from_ndarray(image, format="bgr24")
 
@@ -341,8 +393,9 @@ with left:
         video_processor_factory=ExerciseProcessor,
         media_stream_constraints={
             "video": {
-                "width": {"ideal": 640},
-                "height": {"ideal": 480},
+                "width": {"ideal": 480},
+                "height": {"ideal": 360},
+                "frameRate": {"ideal": 12, "max": 15},
             },
             "audio": False
         },
