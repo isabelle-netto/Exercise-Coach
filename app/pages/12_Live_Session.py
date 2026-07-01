@@ -167,12 +167,13 @@ except Exception:
 if not saved_direction:
     saved_direction = "increase"
 
+# Less sensitive to avoid fake rep counting
 if saved_rom and saved_rom > 0:
-    rep_threshold = max(4, saved_rom * 0.30)
-    return_threshold = max(2, saved_rom * 0.10)
+    rep_threshold = max(8, saved_rom * 0.45)
+    return_threshold = max(4, saved_rom * 0.18)
 else:
-    rep_threshold = 12
-    return_threshold = 5
+    rep_threshold = 18
+    return_threshold = 8
 
 st.markdown(f"""
 <div class="live-page">
@@ -214,11 +215,9 @@ class ExerciseProcessor:
                 min_tracking_confidence=0.5
             )
             self.pose_ready = True
-            self.pose_error = ""
-        except Exception as e:
+        except Exception:
             self.pose = None
             self.pose_ready = False
-            self.pose_error = str(e)
 
         self.counter = 0
         self.stage = "rest"
@@ -250,7 +249,7 @@ class ExerciseProcessor:
 
             with self.lock:
                 self.status = "bad"
-                self.last_feedback = "Pose model could not load on Streamlit Cloud."
+                self.last_feedback = "Pose model could not load."
 
             return av.VideoFrame.from_ndarray(img, format="bgr24")
 
@@ -281,7 +280,7 @@ class ExerciseProcessor:
                         if self.baseline_angle is None:
                             self.baseline_samples.append(angle)
 
-                            if len(self.baseline_samples) >= 15:
+                            if len(self.baseline_samples) >= 30:
                                 self.baseline_angle = sum(self.baseline_samples) / len(self.baseline_samples)
                                 self.status = "neutral"
                                 self.last_feedback = "Baseline set. Start moving."
@@ -293,6 +292,11 @@ class ExerciseProcessor:
                                 movement = angle - self.baseline_angle
 
                             movement = max(0, movement)
+
+                            # Ignore tiny movement/jitter
+                            if movement < 3:
+                                movement = 0
+
                             self.last_movement = movement
 
                             unsafe = False
@@ -348,7 +352,6 @@ class ExerciseProcessor:
             duration = int(time.time() - self.session_start_time)
             counter = self.counter
             stage = self.stage
-            feedback = self.last_feedback
             display_angle = self.last_angle
             display_status = self.status
             baseline = self.baseline_angle
