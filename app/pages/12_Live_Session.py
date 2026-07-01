@@ -167,7 +167,6 @@ except Exception:
 if not saved_direction:
     saved_direction = "increase"
 
-# Less sensitive to avoid fake rep counting
 if saved_rom and saved_rom > 0:
     rep_threshold = max(8, saved_rom * 0.45)
     return_threshold = max(4, saved_rom * 0.18)
@@ -244,8 +243,6 @@ class ExerciseProcessor:
             cv2.rectangle(img, (10, 10), (620, 130), (0, 0, 255), 3)
             cv2.putText(img, "POSE MODEL NOT AVAILABLE", (25, 45),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 255), 2)
-            cv2.putText(img, "Reboot app or check MediaPipe install.", (25, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 2)
 
             with self.lock:
                 self.status = "bad"
@@ -286,27 +283,17 @@ class ExerciseProcessor:
                                 self.last_feedback = "Baseline set. Start moving."
 
                         else:
-                            if saved_direction == "decrease":
-                                movement = self.baseline_angle - angle
-                            else:
-                                movement = angle - self.baseline_angle
+                            movement = abs(angle - self.baseline_angle)
 
-                            movement = max(0, movement)
-
-                            # Ignore tiny movement/jitter
-                            if movement < 3:
+                            if movement < 5:
                                 movement = 0
 
                             self.last_movement = movement
 
                             unsafe = False
 
-                            if saved_limit is not None:
-                                margin = 10
-
-                                if saved_direction == "increase" and angle > saved_limit + margin:
-                                    unsafe = True
-                                if saved_direction == "decrease" and angle < saved_limit - margin:
+                            if saved_rom is not None and saved_rom > 0:
+                                if movement > saved_rom + 12:
                                     unsafe = True
 
                             if unsafe:
@@ -356,6 +343,7 @@ class ExerciseProcessor:
             display_status = self.status
             baseline = self.baseline_angle
             movement = self.last_movement
+            feedback = self.last_feedback
 
         if display_status == "good":
             border_colour = (0, 180, 0)
