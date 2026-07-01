@@ -111,25 +111,67 @@ def show_exercise_profile(exercise_id):
     details = get_exercise_details(exercise_id)
 
     if details:
-
         name, target_area, instructions, difficulty, seated = details
 
-        st.subheader(name)
+        st.markdown(f"""
+        <style>
+        .dialog-header {{
+            background: linear-gradient(135deg, #1f2421, #2d3530);
+            padding: 24px;
+            border-radius: 18px;
+            margin-bottom: 20px;
+        }}
 
-        st.write(f"**Target Area:** {target_area}")
-        st.write(f"**Difficulty:** {difficulty}")
-        st.write(f"**Seated Friendly:** {'Yes' if seated else 'No'}")
+        .dialog-title {{
+            font-size: 32px;
+            font-weight: 900;
+            margin-bottom: 12px;
+        }}
 
-        st.divider()
+        .dialog-pill {{
+            display: inline-block;
+            background: rgba(159,185,212,0.18);
+            border: 1px solid #9fb9d4;
+            padding: 7px 13px;
+            border-radius: 999px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            font-weight: 800;
+        }}
 
-        st.markdown("### Instructions")
+        .instruction-box {{
+            background: rgba(31,36,33,0.92);
+            padding: 22px;
+            border-radius: 18px;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }}
 
-        st.write(instructions)
+        .instruction-box p {{
+            margin-bottom: 16px;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
 
-        if st.button(
-            "Start Live Session",
-            use_container_width=True
-        ):
+        st.markdown(f"""
+        <div class="dialog-header">
+            <div class="dialog-title">{name}</div>
+            <span class="dialog-pill">{target_area}</span>
+            <span class="dialog-pill">{difficulty}</span>
+            <span class="dialog-pill">{'Seated Friendly' if seated else 'Standing Exercise'}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        clean_instructions = instructions.replace("\n", "<br><br>")
+
+        st.markdown(f"""
+        <div class="instruction-box">
+            <h3>How to Perform This Exercise</h3>
+            <p>{clean_instructions}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("START LIVE SESSION", use_container_width=True):
             st.session_state["active_exercise_id"] = exercise_id
             st.session_state["active_exercise_name"] = name
             st.switch_page("pages/12_Live_Session.py")
