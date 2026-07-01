@@ -115,7 +115,7 @@ with col2:
     html(f"""
     <div class="stat-card">
         <div class="stat-number">{total_minutes}</div>
-        <div class="stat-label">Minutes Exercised</div>
+        <div class="stat-label">Seconds Exercised</div>
     </div>
     """)
 
