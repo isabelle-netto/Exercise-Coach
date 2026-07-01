@@ -1,79 +1,125 @@
 import streamlit as st
+from textwrap import dedent
 from db import (
     get_recommended_exercises,
     get_exercise_details,
     save_diary_entry,
     get_diary_entries,
-    get_user_goals
+    get_user_goals,
+    get_user_session_results
 )
 from ui import apply_style, bottom_nav
 
 st.set_page_config(page_title="Home", layout="wide")
 apply_style()
 
-user_id = st.session_state.get("user_id")
 
-st.markdown("""
+def html(content):
+    st.markdown(dedent(content), unsafe_allow_html=True)
+
+
+user_id = st.session_state.get("user_id")
+user_name = st.session_state.get("user_name", "User")
+
+sessions = get_user_session_results(user_id) if user_id else []
+total_sessions = len(sessions)
+total_minutes = sum([row[2] or 0 for row in sessions]) if sessions else 0
+
+html("""
 <style>
-.home-card {
-    background: rgba(31,36,33,0.90);
-    padding: 24px;
-    border-radius: 18px;
-    margin-bottom: 18px;
+.home-wrap {
+    padding: 35px;
 }
-.stat-card {
-    background: rgba(31,36,33,0.90);
-    padding: 26px;
-    border-radius: 18px;
-    text-align: center;
+
+.hero-card {
+    background: linear-gradient(135deg, #1f2421, #2d3530);
+    border-radius: 24px;
+    padding: 38px;
+    margin-bottom: 28px;
 }
-.stat-number {
+
+.hero-title {
     font-size: 44px;
     font-weight: 900;
+    margin-bottom: 8px;
 }
+
+.hero-sub {
+    font-size: 18px;
+    opacity: 0.82;
+}
+
+.stat-card {
+    background: rgba(31,36,33,0.92);
+    border-radius: 22px;
+    padding: 28px;
+    text-align: center;
+    min-height: 150px;
+}
+
+.stat-number {
+    font-size: 46px;
+    font-weight: 900;
+}
+
 .stat-label {
     font-size: 16px;
-    opacity: 0.8;
+    opacity: 0.78;
 }
+
 .exercise-card {
-    background: rgba(31,36,33,0.90);
-    padding: 24px;
-    border-radius: 18px;
+    background: rgba(31,36,33,0.92);
+    border-radius: 22px;
+    padding: 26px;
     margin-bottom: 18px;
-    border-left: 5px solid #9fb9d4;
+    min-height: 245px;
+    border-left: 6px solid #9fb9d4;
+}
+
+.exercise-card h3 {
+    font-size: 24px;
+    margin-bottom: 18px;
+}
+
+.section-title {
+    font-size: 28px;
+    font-weight: 900;
+    margin-top: 35px;
+    margin-bottom: 18px;
 }
 </style>
-""", unsafe_allow_html=True)
 
-st.markdown("""
-<div class="home-card">
-    <h1>Home</h1>
-    <p>Welcome to your Exercise Coach dashboard.</p>
+<div class="home-wrap">
+""")
+
+html(f"""
+<div class="hero-card">
+    <div class="hero-title">Welcome Back, {user_name}</div>
+    <div class="hero-sub">Your personalised Exercise Coach dashboard is ready.</div>
 </div>
-""", unsafe_allow_html=True)
+""")
 
-st.subheader("Today’s Summary")
+html("<div class='section-title'>Today’s Summary</div>")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("""
+    html(f"""
     <div class="stat-card">
-        <div class="stat-number">3</div>
+        <div class="stat-number">{total_sessions}</div>
         <div class="stat-label">Sessions Completed</div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 with col2:
-    st.markdown("""
+    html(f"""
     <div class="stat-card">
-        <div class="stat-number">190</div>
+        <div class="stat-number">{total_minutes}</div>
         <div class="stat-label">Minutes Exercised</div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
-st.divider()
-st.subheader("Recommended for You")
+html("<div class='section-title'>Recommended for You</div>")
 
 recommended = get_recommended_exercises(user_id)
 
@@ -112,28 +158,26 @@ else:
         score, ex_id, name, target_area, difficulty, seated = item
 
         with cols[i % 2]:
-            st.markdown(f"""
-<div class="exercise-card">
-    <h3>{name}</h3>
-    <p><b>Target Area:</b> {target_area}</p>
-    <p><b>Difficulty:</b> {difficulty}</p>
-    <p><b>Recommendation Score:</b> {score}</p>
-    <p><b>Seated Friendly:</b> {'Yes' if seated else 'No'}</p>
-</div>
-""", unsafe_allow_html=True)
+            html(f"""
+            <div class="exercise-card">
+                <h3>{name}</h3>
+                <p><b>Target Area:</b> {target_area}</p>
+                <p><b>Difficulty:</b> {difficulty}</p>
+                <p><b>Recommendation Score:</b> {score}</p>
+                <p><b>Seated Friendly:</b> {'Yes' if seated else 'No'}</p>
+            </div>
+            """)
 
-            if st.button("View Details", key=f"rec_{ex_id}"):
+            if st.button("View Details", key=f"rec_{ex_id}", use_container_width=True):
                 show_exercise_profile(ex_id)
 
-st.divider()
-st.subheader("Progress Diary")
+html("<div class='section-title'>Progress Diary</div>")
 
 if not user_id:
     st.warning("Please sign in to use the diary.")
 
 else:
     goals = get_user_goals(user_id)
-
     st.write("Your diary questions are personalised based on your selected goals.")
 
     QUESTION_BANK = {
@@ -227,11 +271,13 @@ else:
                 for date, note in entries:
                     formatted_note = note.replace("\n", "<br>")
 
-                    st.markdown(f"""
-<div class="exercise-card">
-    <b>{date}</b><br><br>
-    {formatted_note}
-</div>
-""", unsafe_allow_html=True)
+                    html(f"""
+                    <div class="exercise-card">
+                        <b>{date}</b><br><br>
+                        {formatted_note}
+                    </div>
+                    """)
+
+html("</div>")
 
 bottom_nav()
