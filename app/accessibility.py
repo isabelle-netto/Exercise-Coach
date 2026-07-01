@@ -4,12 +4,10 @@ import json
 
 
 def init_accessibility_settings():
-    params = st.query_params
-
     defaults = {
-        "theme": params.get("theme", "Dark"),
-        "text_size": params.get("text_size", "Standard"),
-        "audio_feedback": params.get("audio_feedback", "False") == "True",
+        "theme": "Dark",
+        "text_size": "Standard",
+        "audio_feedback": False,
     }
 
     for key, value in defaults.items():
@@ -18,9 +16,9 @@ def init_accessibility_settings():
 
 
 def save_accessibility_settings():
-    st.query_params["theme"] = st.session_state.get("theme", "Dark")
-    st.query_params["text_size"] = st.session_state.get("text_size", "Standard")
-    st.query_params["audio_feedback"] = str(st.session_state.get("audio_feedback", False))
+    st.session_state["theme"] = st.session_state.get("theme", "Dark")
+    st.session_state["text_size"] = st.session_state.get("text_size", "Standard")
+    st.session_state["audio_feedback"] = st.session_state.get("audio_feedback", False)
 
 
 def accessibility_settings_panel(use_popover=False):
@@ -33,22 +31,19 @@ def accessibility_settings_panel(use_popover=False):
             "Theme",
             ["Dark", "Light"],
             key="theme",
-            horizontal=True,
-            on_change=save_accessibility_settings
+            horizontal=True
         )
 
         st.radio(
             "Text Size",
             ["Standard", "Large"],
             key="text_size",
-            horizontal=True,
-            on_change=save_accessibility_settings
+            horizontal=True
         )
 
         st.checkbox(
             "Enable audio feedback",
-            key="audio_feedback",
-            on_change=save_accessibility_settings
+            key="audio_feedback"
         )
 
         st.caption(
@@ -110,7 +105,7 @@ def apply_accessibility_styles():
         color: {text} !important;
     }}
 
-    p, label, span, input, textarea, button, div {{
+    p, label, span, input, textarea, button {{
         font-size: {base_size} !important;
     }}
 
@@ -157,11 +152,6 @@ def apply_accessibility_styles():
         border: 2px solid {border} !important;
     }}
 
-    input::placeholder,
-    textarea::placeholder {{
-        color: #666666 !important;
-    }}
-
     div[data-baseweb="select"] > div {{
         background-color: {select_bg} !important;
         color: {select_text} !important;
@@ -198,7 +188,6 @@ def apply_accessibility_styles():
         font-weight: 900 !important;
     }}
 
-    .floating-nav,
     .st-key-floating_bottom_nav {{
         background: {nav_bg} !important;
         border-color: {nav_border} !important;

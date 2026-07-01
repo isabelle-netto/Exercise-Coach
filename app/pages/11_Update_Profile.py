@@ -138,17 +138,12 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-accessibility_settings_panel()
+from accessibility import accessibility_settings_panel, speak, save_accessibility_settings
 
-col_a, col_b = st.columns(2)
-
-with col_a:
-    if st.button("Read Accessibility Settings", use_container_width=True):
-        speak("Accessibility settings. You can change theme, text size, and audio feedback.")
-
-with col_b:
-    if st.button("Save Accessibility Preferences", use_container_width=True):
-        st.success("Accessibility preferences saved.")
+if st.button("Save Accessibility Preferences", use_container_width=True):
+    save_accessibility_settings()
+    st.success("Accessibility preferences saved.")
+    st.rerun()
 
 st.markdown("""
 <div class="profile-card">
